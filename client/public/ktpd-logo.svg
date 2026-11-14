@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="ktpdGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1D4ED8" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="22" fill="url(#ktpdGrad)"/>
+  <!-- Steering wheel / shield motif -->
+  <circle cx="50" cy="50" r="32" fill="none" stroke="#FFFFFF" stroke-width="5"/>
+  <circle cx="50" cy="50" r="12" fill="#FFFFFF"/>
+  <line x1="50" y1="18" x2="50" y2="38" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round"/>
+  <line x1="22" y1="64" x2="40" y2="55" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round"/>
+  <line x1="78" y1="64" x2="60" y2="55" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round"/>
+</svg>
+

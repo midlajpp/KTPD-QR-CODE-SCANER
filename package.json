@@ -1,0 +1,21 @@
+{
+  "name": "ktpd-membership-management-system",
+  "version": "1.0.0",
+  "description": "KTPD Membership Management System - Full MERN Stack Application",
+  "scripts": {
+    "install:all": "npm install --prefix server && npm install --prefix client",
+    "server": "npm run dev --prefix server",
+    "client": "npm run dev --prefix client",
+    "seed": "npm run seed --prefix server",
+    "test": "npm run test --prefix server",
+    "build": "npm run build --prefix client"
+  },
+  "keywords": [
+    "ktpd",
+    "membership",
+    "mern"
+  ],
+  "author": "KTPD Team",
+  "license": "ISC"
+}
+

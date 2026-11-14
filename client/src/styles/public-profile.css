@@ -1,0 +1,226 @@
+/* ==========================================================================
+   PUBLIC MEMBER PROFILE - MOBILE FIRST CARD
+   Designed for smartphone QR code scanning and instant verification
+   ========================================================================== */
+
+.public-profile-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 1rem;
+}
+
+.profile-card {
+  width: 100%;
+  max-width: 520px;
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: slideUp 0.3s ease;
+}
+
+.profile-header {
+  background: linear-gradient(135deg, #1D4ED8 0%, #0F172A 100%);
+  color: #FFFFFF;
+  padding: 2rem 1.75rem 1.5rem;
+  text-align: center;
+  position: relative;
+}
+
+.profile-badge-logo {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 0.875rem;
+  background-color: #FFFFFF;
+  border-radius: 50%;
+  padding: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-badge-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.profile-org-title {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #FFFFFF;
+}
+
+.profile-org-sub {
+  font-size: 0.8125rem;
+  color: #BFDBFE;
+  margin-top: 0.25rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Status Banner */
+.profile-status-banner {
+  padding: 0.875rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  text-align: center;
+}
+
+.profile-status-banner.status-active {
+  background-color: #DCFCE7;
+  color: #15803D;
+  border-bottom: 2px solid #86EFAC;
+}
+
+.profile-status-banner.status-inactive {
+  background-color: #FEE2E2;
+  color: #991B1B;
+  border-bottom: 2px solid #FCA5A5;
+}
+
+/* Profile Body */
+.profile-body {
+  padding: 1.75rem;
+}
+
+.profile-primary-block {
+  text-align: center;
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px dashed var(--border);
+}
+
+.profile-member-name {
+  font-size: 1.625rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.profile-member-id-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 1rem;
+  background-color: var(--primary-light);
+  color: var(--primary);
+  border-radius: var(--radius-full);
+  font-family: monospace;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  margin-top: 0.5rem;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+.profile-grid-full {
+  grid-column: span 2;
+}
+
+.profile-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-item-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.profile-item-value {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.call-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+  margin-top: 0.25rem;
+}
+
+.call-btn:hover {
+  text-decoration: underline;
+}
+
+.profile-emergency-box {
+  background-color: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.75rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+}
+
+[data-theme='dark'] .profile-emergency-box {
+  background-color: #450A0A;
+  border-color: #7F1D1D;
+}
+
+.profile-footer {
+  background-color: var(--bg-hover);
+  border-top: 1px solid var(--border);
+  padding: 1.25rem 1.75rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.profile-security-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  color: var(--success);
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .profile-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .profile-grid-full {
+    grid-column: span 1;
+  }
+  .profile-header {
+    padding: 1.5rem 1rem 1.25rem;
+  }
+  .profile-body {
+    padding: 1.25rem;
+  }
+}
+

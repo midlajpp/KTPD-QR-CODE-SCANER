@@ -1,0 +1,40 @@
+# ==============================================================================
+# KTPD MEMBERSHIP MANAGEMENT SYSTEM - RENDER DEPLOYMENT BLUEPRINT
+# ==============================================================================
+# Render Blueprint Specification (Infrastructure-as-Code)
+# Reference: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: ktpd-backend
+    env: node
+    plan: free
+    region: frankfurt
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: MONGO_URI
+        sync: false # Set in Render Dashboard: your MongoDB Atlas connection string
+      - key: JWT_SECRET
+        sync: false # Set in Render Dashboard: 64-character random secure secret
+      - key: CLIENT_URL
+        sync: false # Set in Render Dashboard: your Netlify frontend URL (e.g. https://ktpd.netlify.app)
+      - key: PUBLIC_BASE_URL
+        sync: false # Set in Render Dashboard: your Netlify frontend URL (e.g. https://ktpd.netlify.app)
+      - key: ALLOWED_ORIGINS
+        sync: false # Set in Render Dashboard: comma-separated additional domains if any
+      - key: ADMIN_EMAIL
+        sync: false # Set in Render Dashboard: ktpd2018.uae@gmail.com
+      - key: ADMIN_PASSWORD
+        sync: false # Set in Render Dashboard: your initial Super Admin password
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_FULL_NAME
+        value: KTPD Super Admin
