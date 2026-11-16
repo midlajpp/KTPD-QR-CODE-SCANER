@@ -146,10 +146,27 @@ const ImportPage = () => {
             ? {
                 ...c,
                 isExisting: false,
+                isMemberId: false,
                 isSystemField: false,
                 fieldKey: c.header.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 50),
                 fieldLabel: c.header.trim(),
                 fieldType: 'text'
+              }
+            : c
+        )
+      );
+    } else if (targetKey === 'memberId') {
+      setColumnConfigs((prev) =>
+        prev.map((c, i) =>
+          i === index
+            ? {
+                ...c,
+                isExisting: true,
+                isMemberId: true,
+                isSystemField: true,
+                fieldKey: 'memberId',
+                fieldLabel: c.header.trim(),
+                fieldType: 'alphanumeric'
               }
             : c
         )
@@ -163,6 +180,7 @@ const ImportPage = () => {
               ? {
                   ...c,
                   isExisting: true,
+                  isMemberId: targetKey === 'memberId',
                   isSystemField: Boolean(matchedField.isSystemField),
                   fieldKey: matchedField.fieldKey,
                   fieldLabel: matchedField.fieldLabel,
@@ -177,6 +195,17 @@ const ImportPage = () => {
 
   // Execute Smart Import
   const handleStartImport = () => {
+    if (duplicateStrategy === 'cancel') {
+      const hasDups =
+        (previewData?.summary?.duplicateRowCount > 0) ||
+        (previewData?.intraFileDuplicates && previewData.intraFileDuplicates.length > 0);
+      if (hasDups) {
+        showError(
+          'Cannot execute import: Duplicate membership IDs were detected and your policy is set to "Cancel on Duplicate". Please change your duplicate handling policy to "Skip Duplicates" or "Update Existing Records", or correct the CSV file.'
+        );
+        return;
+      }
+    }
     if (duplicateStrategy === 'update') {
       setShowUpdateConfirm(true);
     } else {
@@ -589,9 +618,36 @@ const ImportPage = () => {
                       </td>
                       <td>
                         {col.isMemberId ? (
-                          <span className="badge badge-purple" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
-                            <ShieldCheck size={12} /> Official Member ID
-                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <span className="badge badge-purple" style={{ fontSize: '0.75rem', fontWeight: 700, width: 'fit-content' }}>
+                              <ShieldCheck size={12} /> Official Member ID
+                            </span>
+                            <select
+                              className="form-select"
+                              value="memberId"
+                              onChange={(e) => handleFieldMappingChange(idx, e.target.value)}
+                              disabled={!col.included}
+                              style={{ minWidth: 200, padding: '0.35rem 0.5rem', fontSize: '0.8125rem' }}
+                            >
+                              <optgroup label="Official Identifier">
+                                <option value="memberId">Official Member ID (Primary Key)</option>
+                              </optgroup>
+                              <optgroup label="Action / New Field">
+                                <option value="__NEW__">+ Create as New Custom Field</option>
+                              </optgroup>
+                              {availableFields && availableFields.length > 0 && (
+                                <optgroup label="Map to Existing Database Field">
+                                  {availableFields
+                                    .filter((f) => f.fieldKey !== 'memberId')
+                                    .map((f) => (
+                                      <option key={f.fieldKey} value={f.fieldKey}>
+                                        {f.fieldLabel || f.fieldKey} ({f.fieldKey})
+                                      </option>
+                                    ))}
+                                </optgroup>
+                              )}
+                            </select>
+                          </div>
                         ) : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                             <select
@@ -672,7 +728,7 @@ const ImportPage = () => {
               Choose how the system handles members whose Membership ID or Emirates ID already exists in the database.
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '1rem' }}>
               <label
                 style={{
                   display: 'flex',
@@ -764,6 +820,142 @@ const ImportPage = () => {
               </label>
             </div>
           </div>
+
+          {/* Duplicate IDs Within Uploaded File Alert Table */}
+          {previewData.intraFileDuplicates && previewData.intraFileDuplicates.length > 0 && (
+            <div className="card" style={{ borderLeft: '4px solid var(--danger)' }}>
+              <div className="card-header" style={{ backgroundColor: 'var(--danger-light)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <AlertCircle size={20} color="var(--danger)" />
+                  <div>
+                    <h3 className="card-title" style={{ color: 'var(--danger-text)' }}>
+                      Duplicate Membership IDs in Uploaded File ({previewData.intraFileDuplicates.length} conflicts)
+                    </h3>
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--danger-text)', margin: '0.2rem 0 0', opacity: 0.9 }}>
+                      The same Membership ID appears multiple times within your CSV file. Please review below:
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="table-responsive">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 140 }}>Membership ID</th>
+                      <th style={{ width: 160 }}>Occurs in Rows</th>
+                      <th>Resolution Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewData.intraFileDuplicates.map((item, idx) => (
+                      <tr key={idx}>
+                        <td>
+                          <span className="badge badge-danger" style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8125rem' }}>
+                            {item.memberId}
+                          </span>
+                        </td>
+                        <td>
+                          <strong>Row #{item.firstRowNumber}</strong> &amp; <strong>Row #{item.currentRowNumber}</strong>
+                        </td>
+                        <td style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>
+                          {item.message} —{' '}
+                          {duplicateStrategy === 'skip' ? (
+                            <span style={{ color: 'var(--text-muted)' }}>Row #{item.currentRowNumber} will be skipped</span>
+                          ) : duplicateStrategy === 'update' ? (
+                            <span style={{ color: 'var(--success)' }}>Row #{item.currentRowNumber} will update Row #{item.firstRowNumber}</span>
+                          ) : (
+                            <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Will prevent entire import</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Database Duplicate Records Preview Table */}
+          {previewData.duplicateRows && previewData.duplicateRows.length > 0 && (
+            <div className="card" style={{ borderLeft: '4px solid var(--warning)' }}>
+              <div className="card-header" style={{ backgroundColor: 'rgba(245, 158, 11, 0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <AlertTriangle size={20} color="var(--warning)" />
+                  <div>
+                    <h3 className="card-title" style={{ color: 'var(--text-primary)' }}>
+                      Existing Database Records Detected ({previewData.duplicateRows.length} members)
+                    </h3>
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>
+                      These membership records already exist in MongoDB. Action will follow your selected handling policy.
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <span
+                    className={`badge ${duplicateStrategy === 'skip' ? 'badge-secondary' : duplicateStrategy === 'update' ? 'badge-success' : 'badge-danger'}`}
+                    style={{ fontSize: '0.75rem', fontWeight: 600 }}
+                  >
+                    Policy: {duplicateStrategy === 'skip' ? 'Skip Existing Records' : duplicateStrategy === 'update' ? 'Update & Merge' : 'Cancel on Duplicate'}
+                  </span>
+                </div>
+              </div>
+              <div className="table-responsive">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 80 }}>Row #</th>
+                      <th>Membership ID</th>
+                      <th>Member Name</th>
+                      <th>Detection Reason</th>
+                      <th>Planned Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewData.duplicateRows.slice(0, 25).map((item, idx) => (
+                      <tr key={idx}>
+                        <td>
+                          <strong>#{item.rowNumber}</strong>
+                        </td>
+                        <td>
+                          <span className="badge badge-purple" style={{ fontFamily: 'monospace', fontWeight: 700 }}>
+                            {item.memberId || 'N/A'}
+                          </span>
+                        </td>
+                        <td>
+                          <strong>{item.name || 'Member'}</strong>
+                        </td>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                          {item.reason}
+                        </td>
+                        <td>
+                          {duplicateStrategy === 'skip' && (
+                            <span className="badge badge-secondary" style={{ fontSize: '0.75rem' }}>
+                              Skip row (Preserve existing record)
+                            </span>
+                          )}
+                          {duplicateStrategy === 'update' && (
+                            <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>
+                              Update member (Merge CSV fields, QR preserved)
+                            </span>
+                          )}
+                          {duplicateStrategy === 'cancel' && (
+                            <span className="badge badge-danger" style={{ fontSize: '0.75rem' }}>
+                              Aborts import before changes
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {previewData.duplicateRows.length > 25 && (
+                <div style={{ padding: '0.75rem 1rem', fontSize: '0.8125rem', color: 'var(--text-muted)', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+                  Showing first 25 of {previewData.duplicateRows.length} existing duplicate records.
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Validation Errors Table (if any) */}
           {previewData.invalidRows && previewData.invalidRows.length > 0 && (

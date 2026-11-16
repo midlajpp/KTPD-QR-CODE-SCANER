@@ -266,7 +266,8 @@ export const parseAndValidateCsv = async (csvContent) => {
  * Uses human-readable field labels as CSV headers and UTF-8 encoding.
  * Internal QR tokens and private system data are excluded.
  */
-export const exportMembersToCsv = async (members) => {
+export const exportMembersToCsv = async (members, options = {}) => {
+  const includeQrImage = options.includeQrImage !== false;
   const fields = await MemberField.find({ enabled: true, isArchived: false, showInCsv: true }).sort({
     displayOrder: 1,
     createdAt: 1
@@ -288,20 +289,29 @@ export const exportMembersToCsv = async (members) => {
     const custom = m.customFields || {};
     let displayId = null;
 
-    if (m.memberId && !/^KTPD-\d{4}$/i.test(String(m.memberId).trim())) {
-      displayId = String(m.memberId).trim();
-    } else {
+    if (m.memberId && String(m.memberId).trim()) {
+      const trimmed = String(m.memberId).trim();
+      const candidateKeys = ['ktpd_id_no', 'ktpd_no', 'ktpdIdNo', 'ktpdId', 'ktpdNo'];
+      const hasCustomOverride = candidateKeys.some(
+        (k) => custom[k] && String(custom[k]).trim() && String(custom[k]).trim() !== trimmed
+      );
+      if (!hasCustomOverride || !/^KTPD-\d{4}$/i.test(trimmed)) {
+        displayId = trimmed;
+      }
+    }
+
+    if (!displayId) {
       const candidateKeys = ['ktpd_id_no', 'ktpd_no', 'ktpdIdNo', 'ktpdId', 'ktpdNo'];
       for (const k of candidateKeys) {
         const val = custom[k];
-        if (val && String(val).trim() && !/^KTPD-\d{4}$/i.test(String(val).trim())) {
+        if (val && String(val).trim()) {
           displayId = String(val).trim();
           break;
         }
       }
       if (!displayId) {
         for (const [k, v] of Object.entries(custom)) {
-          if ((/^ktpd.*(no|id)/i.test(k) || /^id.*no/i.test(k)) && v && !/^KTPD-\d{4}$/i.test(String(v).trim())) {
+          if ((/^ktpd.*(no|id)/i.test(k) || /^id.*no/i.test(k)) && v && String(v).trim()) {
             displayId = String(v).trim();
             break;
           }
@@ -389,9 +399,11 @@ export const exportMembersToCsv = async (members) => {
       }
     });
 
-    // 5. Permanent QR Image filename/reference column
-    const safeImageName = String(displayId).replace(/[\\/:*?"<>|]/g, '_');
-    row['qrImage'] = `${safeImageName}.png`;
+    // 5. Permanent QR Image filename/reference column (if requested)
+    if (includeQrImage) {
+      const safeImageName = String(displayId).replace(/[\\/:*?"<>|]/g, '_');
+      row['qrImage'] = `${safeImageName}.png`;
+    }
 
     return row;
   });

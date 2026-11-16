@@ -18,6 +18,7 @@ const Navbar = ({ onOpenMobile, onOpenAddMember }) => {
           <Menu size={20} />
         </button>
         <span
+          className="topbar-subtitle"
           style={{
             fontSize: '0.875rem',
             color: 'var(--text-muted)',

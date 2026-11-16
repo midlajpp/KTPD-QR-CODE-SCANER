@@ -221,10 +221,9 @@ describe('Bulk Delete Members - Functional Deletion & Data Protection', () => {
     expect(res.body.deletedCount).toBe(1);
     expect(res.body.failedCount).toBe(0);
 
-    // Verify member in DB is soft-deleted
+    // Verify member in DB is permanently deleted
     const m1 = await Member.findOne({ memberId: 'D343' });
-    expect(m1.isDeleted).toBe(true);
-    expect(m1.deletedAt).toBeDefined();
+    expect(m1).toBeNull();
 
     // Verify directory does not return deleted member
     const listRes = await request(app)
@@ -250,12 +249,11 @@ describe('Bulk Delete Members - Functional Deletion & Data Protection', () => {
     expect(res.body.deletedCount).toBe(3);
     expect(res.body.failedCount).toBe(0);
 
-    // Verify deleted members are soft-deleted
-    const deletedCountInDb = await Member.countDocuments({
-      memberId: { $in: ['D343', 'D344', 'D345'] },
-      isDeleted: true
+    // Verify deleted members are completely gone from MongoDB
+    const countInDb = await Member.countDocuments({
+      memberId: { $in: ['D343', 'D344', 'D345'] }
     });
-    expect(deletedCountInDb).toBe(3);
+    expect(countInDb).toBe(0);
 
     // Verify remaining unselected members are completely intact
     const remainingMembers = await Member.find({ isDeleted: false });
@@ -277,8 +275,8 @@ describe('Bulk Delete Members - Functional Deletion & Data Protection', () => {
 
     const checkM1 = await Member.findById(member1._id);
     const checkM2 = await Member.findById(member2._id);
-    expect(checkM1.isDeleted).toBe(true);
-    expect(checkM2.isDeleted).toBe(true);
+    expect(checkM1).toBeNull();
+    expect(checkM2).toBeNull();
   });
 
   test('supports Select All (all 5 members)', async () => {

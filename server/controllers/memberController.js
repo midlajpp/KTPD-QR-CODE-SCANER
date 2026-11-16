@@ -15,6 +15,9 @@ import {
   createCompleteExportZipStream
 } from '../services/exportService.js';
 import {
+  createMembersPdfStream
+} from '../services/pdfExportService.js';
+import {
   createIllustratorZipStream
 } from '../services/illustratorService.js';
 import {
@@ -589,7 +592,7 @@ export const updateMember = async (req, res, next) => {
 
 /**
  * @route   DELETE /api/members/:id
- * @desc    Soft-delete member to preserve permanent token history and prevent ID reuse
+ * @desc    Permanently delete member record from MongoDB
  * @access  Private (Admin)
  */
 export const deleteMember = async (req, res, next) => {
@@ -604,21 +607,23 @@ export const deleteMember = async (req, res, next) => {
       });
     }
 
-    member.isDeleted = true;
-    member.deletedAt = new Date();
-    await member.save();
+    const memberId = member.memberId;
+    const memberName = member.name;
+
+    // Permanently remove member document from MongoDB
+    await Member.deleteOne({ _id: member._id });
 
     await AuditLog.create({
       action: 'DELETE_MEMBER',
       performedBy: req.admin?.username || 'system',
-      targetMemberId: member.memberId,
-      details: { name: member.name },
+      targetMemberId: memberId,
+      details: { name: memberName, permanentlyDeleted: true },
       ipAddress: req.ip || ''
     });
 
     res.json({
       success: true,
-      message: `Member ${member.memberId} has been securely archived. ID and QR token will never be reused.`
+      message: `Member ${memberId} has been permanently deleted from the database.`
     });
   } catch (error) {
     next(error);
@@ -627,7 +632,7 @@ export const deleteMember = async (req, res, next) => {
 
 /**
  * @route   POST /api/members/bulk-delete
- * @desc    Secure bulk soft-deletion of selected members
+ * @desc    Secure bulk permanent deletion of selected members
  * @access  Private (Superadmin, Admin only)
  */
 export const bulkDeleteMembers = async (req, res, next) => {
@@ -695,13 +700,9 @@ export const bulkDeleteMembers = async (req, res, next) => {
     }
 
     const targetDocIds = matchingMembers.map((m) => m._id);
-    const now = new Date();
 
-    // Perform atomic soft deletion
-    await Member.updateMany(
-      { _id: { $in: targetDocIds } },
-      { $set: { isDeleted: true, deletedAt: now } }
-    );
+    // Perform genuine atomic permanent deletion from MongoDB
+    const deleteResult = await Member.deleteMany({ _id: { $in: targetDocIds } });
 
     // Identify which requested IDs were matched
     const matchedIdentifierSet = new Set();
@@ -721,16 +722,17 @@ export const bulkDeleteMembers = async (req, res, next) => {
       performedBy: req.admin?.username || 'system',
       details: {
         requestedCount: cleanIds.length,
-        deletedCount: matchingMembers.length,
+        deletedCount: deleteResult.deletedCount || matchingMembers.length,
         failedCount: failedIds.length,
-        deletedMemberIds: matchingMembers.map((m) => m.memberId)
+        deletedMemberIds: matchingMembers.map((m) => m.memberId),
+        permanentlyDeleted: true
       },
       ipAddress: req.ip || ''
     });
 
     res.json({
       success: true,
-      message: `Successfully deleted ${matchingMembers.length} member record(s).`,
+      message: `Successfully permanently deleted ${matchingMembers.length} member record(s) from the database.`,
       deletedCount: matchingMembers.length,
       failedCount: failedIds.length,
       deletedMembers: matchingMembers.map((m) => ({
@@ -1004,8 +1006,41 @@ const buildExportQuery = (req) => {
 };
 
 /**
+ * @route   GET /api/members/export/pdf
+ * @desc    Export members with high-res QR codes as an A4 PDF document
+ * @access  Private (Admin)
+ */
+export const exportMembersPdf = async (req, res, next) => {
+  try {
+    const query = buildExportQuery(req);
+    const members = await Member.find(query).sort({ memberId: 1 }).lean();
+
+    if (!members || members.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No members match the export criteria.'
+      });
+    }
+
+    await AuditLog.create({
+      action: 'EXPORT_PDF',
+      performedBy: req.admin?.username || 'system',
+      details: { exportedCount: members.length },
+      ipAddress: req.ip || ''
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="KTPD-Members-with-QR.pdf"');
+
+    await createMembersPdfStream(members, res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @route   GET /api/members/export
- * @desc    Export members as dynamic CSV with human-readable field labels as headers (Filename: KTPD-Members.csv)
+ * @desc    Export members as dynamic CSV (Supports data-only mode without QR column)
  * @access  Private (Admin)
  */
 export const exportMembers = async (req, res, next) => {
@@ -1013,17 +1048,19 @@ export const exportMembers = async (req, res, next) => {
     const query = buildExportQuery(req);
     const members = await Member.find(query).sort({ memberId: 1 }).lean();
 
-    const csvData = await exportMembersToCsv(members);
+    const isDataOnly = req.query.dataOnly === 'true' || req.query.dataOnly === '1';
+    const csvData = await exportMembersToCsv(members, { includeQrImage: !isDataOnly });
 
     await AuditLog.create({
-      action: 'EXPORT_CSV',
+      action: isDataOnly ? 'EXPORT_CSV_DATA_ONLY' : 'EXPORT_CSV',
       performedBy: req.admin?.username || 'system',
-      details: { exportedCount: members.length },
+      details: { exportedCount: members.length, dataOnly: isDataOnly },
       ipAddress: req.ip || ''
     });
 
+    const filename = isDataOnly ? 'KTPD-Members-Data.csv' : 'KTPD-Members.csv';
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="KTPD-Members.csv"');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csvData);
   } catch (error) {
     next(error);
@@ -1065,7 +1102,7 @@ export const exportQrZip = async (req, res, next) => {
 
 /**
  * @route   GET /api/members/export/all
- * @desc    Export combined ZIP package containing KTPD-Members.csv and QR-Codes/ PNG folder (Filename: KTPD-Export.zip)
+ * @desc    Export combined ZIP package containing Members.csv, Member-Details/, and QR-Codes/ folder (Filename: KTPD-Members-and-QR.zip)
  * @access  Private (Admin)
  */
 export const exportCompleteZip = async (req, res, next) => {
@@ -1088,7 +1125,7 @@ export const exportCompleteZip = async (req, res, next) => {
     });
 
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', 'attachment; filename="KTPD-Export.zip"');
+    res.setHeader('Content-Disposition', 'attachment; filename="KTPD-Members-and-QR.zip"');
 
     await createCompleteExportZipStream(members, res);
   } catch (error) {

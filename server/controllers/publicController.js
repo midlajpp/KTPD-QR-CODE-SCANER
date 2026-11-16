@@ -214,20 +214,29 @@ export const getPublicMemberProfile = async (req, res, next) => {
     const custom = member.customFields || {};
     let displayMemberId = null;
 
-    if (member.memberId && !/^KTPD-\d{4}$/i.test(String(member.memberId).trim())) {
-      displayMemberId = String(member.memberId).trim();
-    } else {
+    if (member.memberId && String(member.memberId).trim()) {
+      const trimmed = String(member.memberId).trim();
+      const candidateKeys = ['ktpd_id_no', 'ktpd_no', 'ktpdIdNo', 'ktpdId', 'ktpdNo'];
+      const hasCustomOverride = candidateKeys.some(
+        (k) => custom[k] && String(custom[k]).trim() && String(custom[k]).trim() !== trimmed
+      );
+      if (!hasCustomOverride || !/^KTPD-\d{4}$/i.test(trimmed)) {
+        displayMemberId = trimmed;
+      }
+    }
+
+    if (!displayMemberId) {
       const candidateKeys = ['ktpd_id_no', 'ktpd_no', 'ktpdIdNo', 'ktpdId', 'ktpdNo'];
       for (const k of candidateKeys) {
         const val = custom[k];
-        if (val && String(val).trim() && !/^KTPD-\d{4}$/i.test(String(val).trim())) {
+        if (val && String(val).trim()) {
           displayMemberId = String(val).trim();
           break;
         }
       }
       if (!displayMemberId) {
         for (const [k, v] of Object.entries(custom)) {
-          if ((/^ktpd.*(no|id)/i.test(k) || /^id.*no/i.test(k)) && v && !/^KTPD-\d{4}$/i.test(String(v).trim())) {
+          if ((/^ktpd.*(no|id)/i.test(k) || /^id.*no/i.test(k)) && v && String(v).trim()) {
             displayMemberId = String(v).trim();
             break;
           }

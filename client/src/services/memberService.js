@@ -78,6 +78,40 @@ export const memberService = {
     setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
   },
 
+  // Download A4 PDF containing member details and QR verification codes
+  downloadMembersPdf: async (params = {}) => {
+    const response = await api.get('/members/export/pdf', {
+      params,
+      responseType: 'blob'
+    });
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = 'KTPD-Members-with-QR.pdf';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+  },
+
+  // Download members data only as pure CSV (no QR images)
+  downloadMembersDataCsv: async (params = {}) => {
+    const response = await api.get('/members/export', {
+      params: { ...params, dataOnly: 'true' },
+      responseType: 'blob'
+    });
+    const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = 'KTPD-Members-Data.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+  },
+
   // Download dynamic CSV export (Filename: KTPD-Members.csv)
   downloadMembersCsv: async (params = {}) => {
     const response = await api.get('/members/export', {

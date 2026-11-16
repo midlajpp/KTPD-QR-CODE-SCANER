@@ -156,7 +156,7 @@ const MemberDetailModal = ({ isOpen, onClose, member, onEdit, onStatusChanged })
         </>
       }
     >
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 240px', gap: '1.75rem' }}>
+      <div className="member-detail-grid">
         {/* Left: Details */}
         <div>
           <div
@@ -185,14 +185,7 @@ const MemberDetailModal = ({ isOpen, onClose, member, onEdit, onStatusChanged })
             </span>
           </div>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
-              gap: '1rem',
-              fontSize: '0.875rem'
-            }}
-          >
+          <div className="detail-field-grid">
             <div>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>
                 Emirates ID
@@ -276,14 +269,7 @@ const MemberDetailModal = ({ isOpen, onClose, member, onEdit, onStatusChanged })
                 </span>
               </div>
 
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, 1fr)',
-                  gap: '0.875rem',
-                  fontSize: '0.875rem'
-                }}
-              >
+              <div className="detail-field-grid">
                 {Object.entries(member.customFields).map(([key, val]) => {
                   if (val === undefined || val === null || val === '') return null;
                   const def = fieldDefs[key];

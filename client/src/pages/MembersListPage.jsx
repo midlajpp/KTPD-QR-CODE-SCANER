@@ -7,6 +7,7 @@ import MemberDetailModal from '../components/MemberDetailModal';
 import MemberFormModal from '../components/MemberFormModal';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Modal from '../components/Modal';
+import ExportModal from '../components/ExportModal';
 import { useToast } from '../context/ToastContext';
 import { getDisplayMemberId } from '../utils/memberUtils';
 import {
@@ -54,6 +55,7 @@ const MembersListPage = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const { showSuccess, showError } = useToast();
   const navigate = useNavigate();
@@ -148,11 +150,11 @@ const MembersListPage = () => {
     setDeleteLoading(true);
     try {
       const res = await memberService.deleteMember(deletingMember._id || deletingMember.memberId);
-      showSuccess(res.message || 'Member archived.');
+      showSuccess(res.message || 'Member permanently deleted.');
       setDeletingMember(null);
       fetchMembers(pagination.page);
     } catch (err) {
-      showError('Failed to archive member.');
+      showError('Failed to delete member.');
     } finally {
       setDeleteLoading(false);
     }
@@ -202,19 +204,20 @@ const MembersListPage = () => {
             <span>{selectedIds.size > 0 ? `Bulk Delete (${selectedIds.size})` : 'Bulk Delete'}</span>
           </button>
           <button
-            onClick={handleGoToBulkExport}
-            className="btn btn-outline"
-            title="Bulk Export"
+            onClick={() => setShowExportModal(true)}
+            className="btn btn-secondary"
+            title="Export Members + QR Codes, CSV, or QR ZIP"
           >
             <Download size={16} />
-            <span>{selectedIds.size > 0 ? `Bulk Export (${selectedIds.size})` : 'Bulk Export'}</span>
+            <span>{selectedIds.size > 0 ? `Export (${selectedIds.size})` : 'Export'}</span>
           </button>
           <button
-            onClick={handleExportCsv}
-            className="btn btn-secondary"
+            onClick={handleGoToBulkExport}
+            className="btn btn-outline"
+            title="Open Dedicated Bulk Export Workspace"
           >
-            <Download size={16} />
-            <span>Export CSV</span>
+            <Layers size={16} />
+            <span>Advanced Export</span>
           </button>
           <button className="btn btn-primary" onClick={openAddModal}>
             <Plus size={16} />
@@ -503,7 +506,7 @@ const MembersListPage = () => {
                               className="btn-icon"
                               style={{ color: 'var(--danger)' }}
                               onClick={() => setDeletingMember(member)}
-                              title="Archive Member"
+                              title="Permanently Delete Member"
                             >
                               <Trash2 size={15} />
                             </button>
@@ -597,9 +600,9 @@ const MembersListPage = () => {
           isOpen={!!deletingMember}
           onClose={() => setDeletingMember(null)}
           onConfirm={handleDeleteConfirm}
-          title="Archive Member"
-          message={`Archive ${getDisplayMemberId(deletingMember)} (${deletingMember.name})? Permanent QR token will be preserved.`}
-          confirmText="Archive"
+          title="Permanently Delete Member"
+          message={`Are you sure you want to permanently delete member ${getDisplayMemberId(deletingMember)} (${deletingMember.name})? This will permanently remove their record from MongoDB. This action cannot be undone.`}
+          confirmText="Delete Member"
           danger={true}
           loading={deleteLoading}
         />
@@ -610,8 +613,8 @@ const MembersListPage = () => {
         <Modal
           isOpen={showBulkDeleteModal}
           onClose={() => !bulkDeleteLoading && setShowBulkDeleteModal(false)}
-          title="Confirm Bulk Deletion"
-          subtitle={`Deleting ${selectedIds.size} member record${selectedIds.size > 1 ? 's' : ''}`}
+          title="Confirm Permanent Bulk Deletion"
+          subtitle={`Permanently deleting ${selectedIds.size} member record${selectedIds.size > 1 ? 's' : ''}`}
           footer={
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', width: '100%' }}>
               <button
@@ -633,7 +636,7 @@ const MembersListPage = () => {
                 <span>
                   {bulkDeleteLoading
                     ? 'Deleting...'
-                    : `Delete (${selectedIds.size})`}
+                    : `Permanently Delete (${selectedIds.size})`}
                 </span>
               </button>
             </div>
@@ -668,10 +671,10 @@ const MembersListPage = () => {
               </div>
               <div>
                 <h4 style={{ margin: '0 0 0.25rem 0', color: 'var(--danger)', fontSize: '0.9375rem', fontWeight: 600 }}>
-                  Warning: This action cannot be undone
+                  Warning: Permanent Database Deletion
                 </h4>
                 <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.5 }}>
-                  Delete <strong>{selectedIds.size}</strong> member record{selectedIds.size > 1 ? 's' : ''}? Their public QR profiles will become inactive immediately.
+                  Permanently delete <strong>{selectedIds.size}</strong> member record{selectedIds.size > 1 ? 's' : ''} from MongoDB? These records will be completely removed and their public QR profiles will no longer resolve. This action cannot be undone.
                 </p>
               </div>
             </div>
@@ -718,6 +721,18 @@ const MembersListPage = () => {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* Advanced Bulk Export Modal with 3 distinct options */}
+      {showExportModal && (
+        <ExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          selectedCount={selectedIds.size}
+          totalCount={pagination.total}
+          selectedIds={selectedIds}
+          activeFilters={{ search, status: statusFilter }}
+        />
       )}
     </div>
   );

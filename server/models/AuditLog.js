@@ -13,6 +13,8 @@ const auditLogSchema = new mongoose.Schema(
         'TOGGLE_STATUS',
         'IMPORT_CSV',
         'EXPORT_CSV',
+        'EXPORT_CSV_DATA_ONLY',
+        'EXPORT_PDF',
         'EXPORT_QR',
         'EXPORT_ALL',
         'BULK_EXPORT',

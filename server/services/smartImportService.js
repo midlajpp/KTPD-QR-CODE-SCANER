@@ -6,6 +6,15 @@ import AuditLog from '../models/AuditLog.js';
 import { generateSecureToken } from '../utils/crypto.js';
 
 /**
+ * Creates an intentional 400 Bad Request error for import cancellations.
+ */
+const createCancellationError = (message) => {
+  const err = new Error(message);
+  err.statusCode = 400;
+  return err;
+};
+
+/**
  * Normalizes a header or key for comparison by stripping punctuation and lowercasing.
  */
 export const normalizeString = (str) => {
@@ -66,21 +75,35 @@ export const isMemberIdHeader = (headerName) => {
     'membershipid',
     'membershipno',
     'membershipnumber',
+    'membershipcode',
     'memberid',
     'memberno',
     'membernumber',
+    'membercode',
     'idno',
-    'idnumber'
+    'idnumber',
+    'cardno',
+    'cardnumber',
+    'cardid',
+    'regno',
+    'registrationno',
+    'registerno',
+    'regnumber',
+    'slno',
+    'serialno'
   ];
 
   if (directMatches.includes(norm)) return true;
 
-  if (norm.startsWith('ktpd') && (norm.includes('no') || norm.includes('id') || norm.includes('num'))) {
+  if (
+    (norm.startsWith('ktpd') || norm.startsWith('member') || norm.startsWith('membership')) &&
+    (norm.includes('no') || norm.includes('id') || norm.includes('num') || norm.includes('code'))
+  ) {
     return true;
   }
 
-  // Exact 'id' if nothing else
-  if (norm === 'id') return true;
+  // Exact 'id', 'member', or 'membership' if nothing else
+  if (norm === 'id' || norm === 'member' || norm === 'membership') return true;
 
   return false;
 };
@@ -397,10 +420,10 @@ export const analyzeCsvContent = async (csvContent) => {
     }
   }
 
-  // Duplicate member checking in MongoDB
+  // Duplicate member checking in MongoDB (includes all records to prevent unique index clashes)
   const existingMembers = await Member.find(
-    { isDeleted: false },
-    { memberId: 1, emiratesId: 1, 'customFields.ktpdNo': 1, 'customFields.ktpd_id_no': 1 }
+    {},
+    { memberId: 1, emiratesId: 1, isDeleted: 1, 'customFields.ktpdNo': 1, 'customFields.ktpd_id_no': 1 }
   ).lean();
 
   const existingMemberIdMap = new Map();
@@ -424,9 +447,10 @@ export const analyzeCsvContent = async (csvContent) => {
   const duplicateRows = [];
   const invalidRows = [];
   const validRows = [];
+  const intraFileDuplicates = [];
 
-  const seenInFileIds = new Set();
-  const seenInFileEmirates = new Set();
+  const seenInFileIds = new Map(); // lowerId -> { rowNum, rawId }
+  const seenInFileEmirates = new Map(); // lowerEmirates -> { rowNum, rawVal }
 
   // Locate the Member ID column header
   const idCol = columnAnalyses.find((c) => c.isMemberId || c.fieldKey === 'memberId')?.header;
@@ -453,9 +477,16 @@ export const analyzeCsvContent = async (csvContent) => {
     if (rawIdVal) {
       const lowerId = rawIdVal.toLowerCase();
       if (seenInFileIds.has(lowerId)) {
-        errors.push(`Duplicate ID "${rawIdVal}" appears multiple times in uploaded file.`);
+        const prev = seenInFileIds.get(lowerId);
+        errors.push(`Duplicate Membership ID "${rawIdVal}" found on row #${prev.rowNum} and row #${rowNum}. Each member in the CSV must have a unique ID.`);
+        intraFileDuplicates.push({
+          memberId: rawIdVal,
+          firstRowNumber: prev.rowNum,
+          currentRowNumber: rowNum,
+          message: `Membership ID "${rawIdVal}" appears on row #${prev.rowNum} and row #${rowNum}.`
+        });
       } else {
-        seenInFileIds.add(lowerId);
+        seenInFileIds.set(lowerId, { rowNum, rawId: rawIdVal });
       }
 
       if (existingMemberIdMap.has(lowerId)) {
@@ -467,9 +498,10 @@ export const analyzeCsvContent = async (csvContent) => {
     if (emiratesVal) {
       const lowerE = emiratesVal.toLowerCase();
       if (seenInFileEmirates.has(lowerE)) {
-        errors.push(`Duplicate Emirates ID "${emiratesVal}" appears multiple times in uploaded file.`);
+        const prevE = seenInFileEmirates.get(lowerE);
+        errors.push(`Duplicate Emirates ID "${emiratesVal}" appears on row #${prevE.rowNum} and row #${rowNum}.`);
       } else {
-        seenInFileEmirates.add(lowerE);
+        seenInFileEmirates.set(lowerE, { rowNum, rawVal: emiratesVal });
       }
 
       if (existingEmiratesMap.has(lowerE)) {
@@ -514,16 +546,25 @@ export const analyzeCsvContent = async (csvContent) => {
     columns: columnAnalyses,
     newFieldsToCreate: columnAnalyses.filter((c) => !c.isExisting),
     existingFieldsMatched: columnAnalyses.filter((c) => c.isExisting),
-    availableFields: allDbFields
-      .filter((f) => !f.isArchived)
-      .map((f) => ({
-        fieldKey: f.fieldKey,
-        fieldLabel: f.fieldLabel,
-        fieldType: f.fieldType,
-        isSystemField: f.isSystemField
-      })),
+    availableFields: [
+      {
+        fieldKey: 'memberId',
+        fieldLabel: 'KTPD Membership ID (Official Member ID)',
+        fieldType: 'alphanumeric',
+        isSystemField: true
+      },
+      ...allDbFields
+        .filter((f) => !f.isArchived && f.fieldKey !== 'memberId')
+        .map((f) => ({
+          fieldKey: f.fieldKey,
+          fieldLabel: f.fieldLabel,
+          fieldType: f.fieldType,
+          isSystemField: f.isSystemField
+        }))
+    ],
     previewRows: rows.slice(0, 15),
     duplicateRows,
+    intraFileDuplicates,
     invalidRows,
     summary: {
       totalRows: rows.length,
@@ -587,6 +628,81 @@ export const executeSmartImport = async ({
   });
 
   const validMappings = columnMappings.filter((m) => m.included !== false);
+
+  // Mapping lookup map
+  const headerMap = new Map();
+  validMappings.forEach((m) => {
+    headerMap.set(m.header, m);
+  });
+
+  // Pre-fetch all members for duplicate detection (including soft-deleted members)
+  const existingMembers = await Member.find({});
+  const memberByCustomId = new Map();
+  const memberByEmirates = new Map();
+
+  existingMembers.forEach((m) => {
+    if (m.memberId) {
+      memberByCustomId.set(String(m.memberId).trim().toLowerCase(), m);
+    }
+    if (m.customFields?.ktpdNo) {
+      memberByCustomId.set(String(m.customFields.ktpdNo).trim().toLowerCase(), m);
+    }
+    if (m.customFields?.ktpd_id_no) {
+      memberByCustomId.set(String(m.customFields.ktpd_id_no).trim().toLowerCase(), m);
+    }
+    if (m.emiratesId) {
+      memberByEmirates.set(m.emiratesId.trim().toLowerCase(), m);
+    }
+  });
+
+  // If duplicateStrategy === 'cancel', pre-scan the whole file BEFORE creating fields or applying changes
+  if (duplicateStrategy === 'cancel') {
+    const seenScanIds = new Map();
+    for (let idx = 0; idx < rows.length; idx++) {
+      const row = rows[idx];
+      const rowNum = idx + 2;
+
+      let scanId = null;
+      for (const [header, val] of Object.entries(row)) {
+        const mapping = headerMap.get(header.trim());
+        if (!mapping || mapping.included === false) continue;
+        if (mapping.isMemberId || mapping.fieldKey === 'memberId' || isMemberIdHeader(mapping.header)) {
+          const cleanVal = val !== undefined && val !== null ? String(val).trim() : '';
+          if (cleanVal) scanId = cleanVal;
+        }
+      }
+
+      if (scanId) {
+        const lowerId = scanId.toLowerCase();
+        // Check intra-file duplicate
+        if (seenScanIds.has(lowerId)) {
+          const firstRow = seenScanIds.get(lowerId);
+          throw createCancellationError(
+            `Import cancelled: Duplicate Membership ID "${scanId}" found on row #${firstRow} and row #${rowNum}. No changes were applied.`
+          );
+        }
+        seenScanIds.set(lowerId, rowNum);
+
+        // Check database duplicate
+        if (memberByCustomId.has(lowerId)) {
+          throw createCancellationError(
+            `Import cancelled: Duplicate Membership ID "${scanId}" detected at row #${rowNum} (already exists in database). No changes were applied.`
+          );
+        }
+        const dbDup = await Member.findOne({
+          $or: [
+            { memberId: scanId },
+            { memberId: new RegExp(`^${scanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+          ]
+        });
+        if (dbDup) {
+          throw createCancellationError(
+            `Import cancelled: Duplicate Membership ID "${scanId}" detected at row #${rowNum} (already exists in database). No changes were applied.`
+          );
+        }
+      }
+    }
+  }
 
   for (let order = 0; order < validMappings.length; order++) {
     const mapping = validMappings[order];
@@ -724,31 +840,8 @@ export const executeSmartImport = async ({
   const updatedMembers = [];
   const skippedMembers = [];
 
-  // Mapping lookup map
-  const headerMap = new Map();
-  validMappings.forEach((m) => {
-    headerMap.set(m.header, m);
-  });
-
-  // Pre-fetch all members for duplicate detection
-  const existingMembers = await Member.find({ isDeleted: false });
-  const memberByCustomId = new Map();
-  const memberByEmirates = new Map();
-
-  existingMembers.forEach((m) => {
-    if (m.memberId) {
-      memberByCustomId.set(String(m.memberId).trim().toLowerCase(), m);
-    }
-    if (m.customFields?.ktpdNo) {
-      memberByCustomId.set(String(m.customFields.ktpdNo).trim().toLowerCase(), m);
-    }
-    if (m.customFields?.ktpd_id_no) {
-      memberByCustomId.set(String(m.customFields.ktpd_id_no).trim().toLowerCase(), m);
-    }
-    if (m.emiratesId) {
-      memberByEmirates.set(m.emiratesId.trim().toLowerCase(), m);
-    }
-  });
+  // Track members processed within this specific import batch for intra-file duplicate handling
+  const processedInFileRun = new Map(); // lowerId -> { rowNum, doc }
 
   for (let idx = 0; idx < rows.length; idx++) {
     const row = rows[idx];
@@ -849,18 +942,77 @@ export const executeSmartImport = async ({
       continue;
     }
 
-    // Check for existing member
+    const lowerId = suppliedMemberId ? suppliedMemberId.trim().toLowerCase() : null;
+
+    // A. Check intra-file duplicate in this same import run
+    if (lowerId && processedInFileRun.has(lowerId)) {
+      const prevRun = processedInFileRun.get(lowerId);
+      if (duplicateStrategy === 'cancel') {
+        throw createCancellationError(
+          `Import cancelled: Duplicate Membership ID "${suppliedMemberId}" found on row #${prevRun.rowNum} and row #${rowNum}. No changes were applied.`
+        );
+      }
+      if (duplicateStrategy === 'skip') {
+        skippedMembers.push({
+          rowNumber: rowNum,
+          memberId: suppliedMemberId,
+          name: memberName || `Member ${suppliedMemberId}`,
+          reason: `Duplicate Membership ID in file (previously processed on row #${prevRun.rowNum}) skipped`
+        });
+        continue;
+      }
+      if (duplicateStrategy === 'update') {
+        const targetDoc = prevRun.doc;
+        Object.entries(standardFields).forEach(([k, v]) => {
+          if (v !== undefined && v !== null && String(v).trim() !== '') {
+            targetDoc[k] = v;
+          }
+        });
+        targetDoc.customFields = {
+          ...(targetDoc.customFields || {}),
+          ...customFields
+        };
+        targetDoc.markModified('customFields');
+        await targetDoc.save();
+
+        updatedMembers.push({
+          memberId: targetDoc.memberId,
+          name: targetDoc.name
+        });
+        continue;
+      }
+    }
+
+    // B. Check for existing member in database
     let existingDoc = null;
-    if (suppliedMemberId && memberByCustomId.has(suppliedMemberId.toLowerCase())) {
-      existingDoc = memberByCustomId.get(suppliedMemberId.toLowerCase());
-    } else if (standardFields.emiratesId && memberByEmirates.has(standardFields.emiratesId.toLowerCase())) {
-      existingDoc = memberByEmirates.get(standardFields.emiratesId.toLowerCase());
+    if (lowerId && memberByCustomId.has(lowerId)) {
+      existingDoc = memberByCustomId.get(lowerId);
+    } else if (standardFields.emiratesId && memberByEmirates.has(standardFields.emiratesId.trim().toLowerCase())) {
+      existingDoc = memberByEmirates.get(standardFields.emiratesId.trim().toLowerCase());
+    }
+
+    // Direct database fallback lookup (supporting soft-deleted members as well)
+    if (!existingDoc && suppliedMemberId) {
+      const cleanId = suppliedMemberId.trim();
+      const safeRegex = new RegExp(`^${cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+      existingDoc = await Member.findOne({
+        $or: [
+          { memberId: cleanId },
+          { memberId: safeRegex },
+          { 'customFields.ktpdNo': cleanId },
+          { 'customFields.ktpdNo': safeRegex },
+          { 'customFields.ktpd_no': cleanId },
+          { 'customFields.ktpd_no': safeRegex },
+          { 'customFields.ktpd_id_no': cleanId },
+          { 'customFields.ktpd_id_no': safeRegex }
+        ]
+      });
     }
 
     if (existingDoc) {
       if (duplicateStrategy === 'cancel') {
-        throw new Error(
-          `Import aborted: Duplicate member detected at row #${rowNum} (ID: ${suppliedMemberId || existingDoc.memberId}).`
+        throw createCancellationError(
+          `Import cancelled: Duplicate Membership ID "${suppliedMemberId || existingDoc.memberId}" detected at row #${rowNum}. No changes were applied.`
         );
       }
 
@@ -871,20 +1023,33 @@ export const executeSmartImport = async ({
           name: memberName || existingDoc.name,
           reason: 'Duplicate record skipped'
         });
+        if (lowerId) {
+          processedInFileRun.set(lowerId, { rowNum, doc: existingDoc });
+        }
         continue;
       }
 
       if (duplicateStrategy === 'update') {
-        // Update member fields while strictly preserving permanent qrToken
+        // Update member fields while strictly preserving permanent qrToken & _id
         Object.entries(standardFields).forEach(([k, v]) => {
-          if (v) existingDoc[k] = v;
+          if (v !== undefined && v !== null && String(v).trim() !== '') {
+            existingDoc[k] = v;
+          }
         });
 
         if (suppliedMemberId) {
           existingDoc.memberId = suppliedMemberId;
           customFields.ktpdNo = suppliedMemberId;
+          customFields.ktpd_id_no = suppliedMemberId;
         }
 
+        // Restore soft-deleted member if updating
+        if (existingDoc.isDeleted) {
+          existingDoc.isDeleted = false;
+          existingDoc.deletedAt = null;
+        }
+
+        // Merge custom fields (preserves existing custom fields)
         existingDoc.customFields = {
           ...(existingDoc.customFields || {}),
           ...customFields
@@ -892,6 +1057,10 @@ export const executeSmartImport = async ({
 
         existingDoc.markModified('customFields');
         await existingDoc.save();
+
+        if (lowerId) {
+          processedInFileRun.set(lowerId, { rowNum, doc: existingDoc });
+        }
 
         updatedMembers.push({
           memberId: existingDoc.memberId,
@@ -932,18 +1101,72 @@ export const executeSmartImport = async ({
       }
     });
 
-    await newMember.save();
+    try {
+      await newMember.save();
 
-    // Update in-memory lookup sets
-    memberByCustomId.set(finalMemberId.toLowerCase(), newMember);
-    if (newMember.emiratesId) {
-      memberByEmirates.set(newMember.emiratesId.toLowerCase(), newMember);
+      // Update in-memory lookup sets
+      memberByCustomId.set(finalMemberId.toLowerCase(), newMember);
+      if (newMember.emiratesId) {
+        memberByEmirates.set(newMember.emiratesId.toLowerCase(), newMember);
+      }
+      if (lowerId) {
+        processedInFileRun.set(lowerId, { rowNum, doc: newMember });
+      }
+
+      createdMembers.push({
+        memberId: newMember.memberId,
+        name: newMember.name
+      });
+    } catch (saveErr) {
+      // Handle MongoDB duplicate key error code 11000 gracefully (e.g. concurrent imports or index uniqueness)
+      if (saveErr.code === 11000) {
+        const clashDoc = await Member.findOne({
+          $or: [
+            { memberId: finalMemberId },
+            { memberId: new RegExp(`^${finalMemberId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+          ]
+        });
+
+        if (duplicateStrategy === 'skip') {
+          skippedMembers.push({
+            rowNumber: rowNum,
+            memberId: finalMemberId,
+            name: memberName || clashDoc?.name || `Member ${finalMemberId}`,
+            reason: 'Duplicate Membership ID skipped'
+          });
+          continue;
+        } else if (duplicateStrategy === 'update') {
+          if (clashDoc) {
+            Object.entries(standardFields).forEach(([k, v]) => {
+              if (v !== undefined && v !== null && String(v).trim() !== '') {
+                clashDoc[k] = v;
+              }
+            });
+            if (clashDoc.isDeleted) {
+              clashDoc.isDeleted = false;
+              clashDoc.deletedAt = null;
+            }
+            clashDoc.customFields = {
+              ...(clashDoc.customFields || {}),
+              ...customFields
+            };
+            clashDoc.markModified('customFields');
+            await clashDoc.save();
+
+            updatedMembers.push({
+              memberId: clashDoc.memberId,
+              name: clashDoc.name
+            });
+            continue;
+          }
+        } else if (duplicateStrategy === 'cancel') {
+          throw createCancellationError(
+            `Import cancelled: Duplicate Membership ID "${finalMemberId}" already exists.`
+          );
+        }
+      }
+      throw saveErr;
     }
-
-    createdMembers.push({
-      memberId: newMember.memberId,
-      name: newMember.name
-    });
   }
 
   // Audit Log

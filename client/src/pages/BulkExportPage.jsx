@@ -10,6 +10,7 @@ import {
   QrCode,
   FileSpreadsheet,
   FolderArchive,
+  FileText,
   Search,
   Filter,
   CheckSquare,
@@ -35,6 +36,7 @@ const BulkExportPage = () => {
   const [bloodGroupFilter, setBloodGroupFilter] = useState('');
 
   // Download loading states
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
   const [downloadingQrZip, setDownloadingQrZip] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
@@ -137,7 +139,24 @@ const BulkExportPage = () => {
     return { ids: Array.from(selectedIds).join(',') };
   };
 
-  // 1. Download CSV Button Handler
+  // 1. Download A4 PDF Document (Members + QR Codes)
+  const handleDownloadPdf = async () => {
+    if (selectedIds.size === 0) {
+      showError('Select at least 1 member.');
+      return;
+    }
+    setDownloadingPdf(true);
+    try {
+      await memberService.downloadMembersPdf(getExportParams());
+      showSuccess(`A4 PDF document for ${selectedIds.size} member(s) downloaded.`);
+    } catch (err) {
+      showError(err.response?.data?.message || 'Failed to generate A4 PDF.');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  // 2. Download Members Data Only (CSV)
   const handleDownloadCsv = async () => {
     if (selectedIds.size === 0) {
       showError('Select at least 1 member.');
@@ -145,16 +164,16 @@ const BulkExportPage = () => {
     }
     setDownloadingCsv(true);
     try {
-      await memberService.downloadMembersCsv(getExportParams());
-      showSuccess('CSV downloaded.');
+      await memberService.downloadMembersDataCsv(getExportParams());
+      showSuccess(`CSV data file for ${selectedIds.size} member(s) downloaded.`);
     } catch (err) {
-      showError('Export failed.');
+      showError(err.response?.data?.message || 'CSV export failed.');
     } finally {
       setDownloadingCsv(false);
     }
   };
 
-  // 2. Download QR PNG Files ZIP Handler
+  // 3. Download QR PNG Files ZIP Handler
   const handleDownloadQrZip = async () => {
     if (selectedIds.size === 0) {
       showError('Select at least 1 member.');
@@ -163,15 +182,15 @@ const BulkExportPage = () => {
     setDownloadingQrZip(true);
     try {
       await memberService.downloadQrZip(getExportParams());
-      showSuccess('QR codes downloaded.');
+      showSuccess(`Printable QR codes ZIP for ${selectedIds.size} member(s) downloaded.`);
     } catch (err) {
-      showError('Download failed.');
+      showError(err.response?.data?.message || 'QR download failed.');
     } finally {
       setDownloadingQrZip(false);
     }
   };
 
-  // 3. Download All (CSV + QR ZIP) Handler
+  // 4. Download Complete Package (Members.csv + Member-Details/ + QR-Codes/) Handler
   const handleDownloadAll = async () => {
     if (selectedIds.size === 0) {
       showError('Select at least 1 member.');
@@ -180,9 +199,9 @@ const BulkExportPage = () => {
     setDownloadingAll(true);
     try {
       await memberService.downloadCompleteExportZip(getExportParams());
-      showSuccess('Archive downloaded.');
+      showSuccess(`Complete package for ${selectedIds.size} member(s) downloaded.`);
     } catch (err) {
-      showError('Download failed.');
+      showError(err.response?.data?.message || 'Complete package download failed.');
     } finally {
       setDownloadingAll(false);
     }
@@ -200,87 +219,156 @@ const BulkExportPage = () => {
         </div>
       </div>
 
-      {/* Export Action Cards */}
+      {/* Export Action Cards - 3 Distinct Options */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
           gap: '1.25rem',
           marginBottom: '2rem'
         }}
       >
-        {/* Card 1: Download CSV */}
-        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        {/* Card 1: Members + QR Codes (A4 PDF & ZIP Package) */}
+        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1.5px solid var(--border)' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-              <div
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                  color: 'var(--primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <FileSpreadsheet size={22} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'rgba(29, 78, 216, 0.1)',
+                    color: 'var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <FileText size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.0625rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                    1. Members + QR Codes
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    A4 PDF Document & Complete ZIP
+                  </span>
+                </div>
               </div>
-              <div>
-                <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                  Member CSV
-                </h3>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  KTPD-Members.csv
-                </span>
-              </div>
+              <span className="badge badge-purple" style={{ fontSize: '0.6875rem', fontWeight: 700 }}>
+                Complete
+              </span>
             </div>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-              Includes all active fields, custom fields, and QR code image references.
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+              Includes all member information, custom fields, and verified QR code graphics encoding permanent URLs.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+            <button
+              onClick={handleDownloadPdf}
+              disabled={downloadingPdf || selectedIds.size === 0}
+              className="btn btn-primary"
+              style={{ width: '100%', justifyContent: 'center', padding: '0.625rem 1rem' }}
+            >
+              {downloadingPdf ? <Loader size={17} className="spinner" /> : <FileText size={17} />}
+              <span>{downloadingPdf ? 'Generating PDF...' : `Download A4 PDF (${selectedIds.size})`}</span>
+            </button>
+            <button
+              onClick={handleDownloadAll}
+              disabled={downloadingAll || selectedIds.size === 0}
+              className="btn btn-secondary"
+              style={{ width: '100%', justifyContent: 'center', padding: '0.625rem 1rem' }}
+            >
+              {downloadingAll ? <Loader size={17} className="spinner" /> : <FolderArchive size={17} />}
+              <span>{downloadingAll ? 'Packaging ZIP...' : `Download ZIP Package (${selectedIds.size})`}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Card 2: Export Members Data Only (CSV) */}
+        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1.5px solid var(--border)' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    color: 'var(--success)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <FileSpreadsheet size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.0625rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                    2. Members Data Only
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    KTPD-Members-Data.csv
+                  </span>
+                </div>
+              </div>
+              <span className="badge badge-success" style={{ fontSize: '0.6875rem', fontWeight: 700 }}>
+                CSV Only
+              </span>
+            </div>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+              Excel-compatible CSV spreadsheet containing official IDs, standard contact details, and custom fields. Excludes QR images.
             </p>
           </div>
 
           <button
             onClick={handleDownloadCsv}
             disabled={downloadingCsv || selectedIds.size === 0}
-            className="btn btn-primary"
+            className="btn btn-secondary"
             style={{ width: '100%', justifyContent: 'center', padding: '0.75rem 1rem' }}
           >
-            {downloadingCsv ? <Loader size={18} className="spinner" /> : <Download size={18} />}
-            <span>{downloadingCsv ? 'Generating...' : `Download CSV (${selectedIds.size})`}</span>
+            {downloadingCsv ? <Loader size={17} className="spinner" /> : <FileSpreadsheet size={17} />}
+            <span>{downloadingCsv ? 'Exporting CSV...' : `Download CSV (${selectedIds.size})`}</span>
           </button>
         </div>
 
-        {/* Card 2: Download QR PNG ZIP */}
-        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        {/* Card 3: Export QR Codes Only (ZIP) */}
+        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1.5px solid var(--border)' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-              <div
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                  color: 'var(--success)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <QrCode size={22} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                    color: '#8B5CF6',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <QrCode size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.0625rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                    3. Export QR Codes Only
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    KTPD-QR-Codes.zip
+                  </span>
+                </div>
               </div>
-              <div>
-                <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                  QR Codes ZIP
-                </h3>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  KTPD-QR-Codes.zip
-                </span>
-              </div>
+              <span className="badge badge-purple" style={{ fontSize: '0.6875rem', fontWeight: 700 }}>
+                PNG ZIP
+              </span>
             </div>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-              High-resolution 300 DPI PNG images named by Member ID.
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+              High-resolution 300 DPI PNG images named strictly by Member ID (e.g. <code>A001.png</code>). No personal data included.
             </p>
           </div>
 
@@ -290,51 +378,8 @@ const BulkExportPage = () => {
             className="btn btn-secondary"
             style={{ width: '100%', justifyContent: 'center', padding: '0.75rem 1rem' }}
           >
-            {downloadingQrZip ? <Loader size={18} className="spinner" /> : <Download size={18} />}
-            <span>{downloadingQrZip ? 'Packaging...' : `Download QR ZIP (${selectedIds.size})`}</span>
-          </button>
-        </div>
-
-        {/* Card 3: Download All (CSV + QR ZIP) */}
-        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1.5px solid var(--primary-light)' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-              <div
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                  color: '#8B5CF6',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <FolderArchive size={22} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                  Complete Package
-                </h3>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  KTPD-Export.zip
-                </span>
-              </div>
-            </div>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-              Combined archive with CSV records, QR images folder, and documentation.
-            </p>
-          </div>
-
-          <button
-            onClick={handleDownloadAll}
-            disabled={downloadingAll || selectedIds.size === 0}
-            className="btn btn-primary"
-            style={{ width: '100%', justifyContent: 'center', padding: '0.75rem 1rem', backgroundColor: '#7C3AED', borderColor: '#7C3AED' }}
-          >
-            {downloadingAll ? <Loader size={18} className="spinner" /> : <Download size={18} />}
-            <span>{downloadingAll ? 'Packaging...' : `Download All (${selectedIds.size})`}</span>
+            {downloadingQrZip ? <Loader size={17} className="spinner" /> : <QrCode size={17} />}
+            <span>{downloadingQrZip ? 'Packaging QR...' : `Download QR ZIP (${selectedIds.size})`}</span>
           </button>
         </div>
       </div>

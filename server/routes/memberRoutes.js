@@ -13,6 +13,7 @@ import {
   importCsv,
   previewCsvImport,
   exportMembers,
+  exportMembersPdf,
   exportQrZip,
   exportCompleteZip,
   downloadTemplate,
@@ -36,8 +37,11 @@ router.use(protectAdmin);
 // CSV import, export, template (Superadmin & Admin only)
 router.post('/import/preview', requireRole(['superadmin', 'admin']), upload.single('file'), previewCsvImport);
 router.post('/import', requireRole(['superadmin', 'admin']), upload.single('file'), importCsv);
+router.get('/export/pdf', requireRole(['superadmin', 'admin']), exportMembersPdf);
 router.get('/export/qr-zip', requireRole(['superadmin', 'admin']), exportQrZip);
+router.get('/export/members-qr-zip', requireRole(['superadmin', 'admin']), exportCompleteZip);
 router.get('/export/all', requireRole(['superadmin', 'admin']), exportCompleteZip);
+router.get('/export/csv', requireRole(['superadmin', 'admin']), exportMembers);
 router.get('/export', requireRole(['superadmin', 'admin']), exportMembers);
 router.get('/template', requireRole(['superadmin', 'admin']), downloadTemplate);
 

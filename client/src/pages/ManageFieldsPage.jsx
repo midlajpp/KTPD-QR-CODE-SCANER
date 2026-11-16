@@ -575,7 +575,7 @@ const ManageFieldsPage = () => {
                   }}
                 >
                   {/* Left: Reorder, Expand, Field Info */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: '260px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 'min(100%, 240px)' }}>
                     {/* Reorder Up/Down */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       <button
