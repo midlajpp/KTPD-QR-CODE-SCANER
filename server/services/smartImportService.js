@@ -49,7 +49,7 @@ export const isMemberIdHeader = (headerName) => {
   const norm = normalizeString(headerName);
   if (!norm) return false;
 
-  // Exclude explicit unrelated document IDs
+  // Exclude explicit unrelated document IDs and row numbers/serial counters
   if (
     norm.includes('emirates') ||
     norm.includes('passport') ||
@@ -59,7 +59,16 @@ export const isMemberIdHeader = (headerName) => {
     norm.includes('licence') ||
     norm.includes('vehicle') ||
     norm.includes('truck') ||
-    norm.includes('car')
+    norm.includes('car') ||
+    norm === 'slno' ||
+    norm === 'sno' ||
+    norm === 'sl' ||
+    norm === 'srno' ||
+    norm === 'serialno' ||
+    norm === 'serialnumber' ||
+    norm === 'row' ||
+    norm === 'rownum' ||
+    norm === 'index'
   ) {
     return false;
   }
@@ -88,9 +97,7 @@ export const isMemberIdHeader = (headerName) => {
     'regno',
     'registrationno',
     'registerno',
-    'regnumber',
-    'slno',
-    'serialno'
+    'regnumber'
   ];
 
   if (directMatches.includes(norm)) return true;
@@ -299,15 +306,91 @@ export const matchHeaderToExistingField = (headerName, allFields = []) => {
 
   // 4. Core system properties fallback
   const coreMappings = [
-    { keys: ['name', 'fullname', 'membername', 'drivername', 'nameofthemember'], target: 'name', type: 'text' },
-    { keys: ['emiratesid', 'eid', 'emiratesidno', 'emiratescardno'], target: 'emiratesId', type: 'text' },
-    { keys: ['mobileno', 'mobile', 'phoneno', 'phone', 'cellphone', 'mobilenumber', 'phonenumber'], target: 'mobileNo', type: 'phone' },
-    { keys: ['transportcompany', 'transportcompanyname', 'company', 'companyname', 'transport'], target: 'transportCompany', type: 'text' },
-    { keys: ['bloodgroup', 'blood', 'bloodtype', 'bg'], target: 'bloodGroup', type: 'dropdown', options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] },
-    { keys: ['status', 'membershipstatus'], target: 'status', type: 'text', options: ['Active', 'Inactive'] },
-    { keys: ['emergencycontact', 'emergencyphone', 'emergencyno', 'emergencynumber'], target: 'emergencyContact', type: 'phone' },
-    { keys: ['livingarea', 'livingareauae', 'area', 'city'], target: 'livingArea', type: 'text' },
-    { keys: ['addressinindia', 'indiaaddress', 'homeaddress'], target: 'addressInIndia', type: 'textarea' }
+    {
+      keys: [
+        'name',
+        'fullname',
+        'membername',
+        'drivername',
+        'nameofthemember',
+        'firstname',
+        'lastname',
+        'driver',
+        'member',
+        'personname',
+        'applicantname',
+        'employeename',
+        'membersname',
+        'driversname'
+      ],
+      target: 'name',
+      type: 'text'
+    },
+    {
+      keys: ['emiratesid', 'eid', 'emiratesidno', 'emiratescardno', 'emiratesidnumber', 'nationalid', 'eidno'],
+      target: 'emiratesId',
+      type: 'text'
+    },
+    {
+      keys: [
+        'mobileno',
+        'mobile',
+        'phoneno',
+        'phone',
+        'cellphone',
+        'mobilenumber',
+        'phonenumber',
+        'contactno',
+        'contactnumber',
+        'contact',
+        'whatsapp',
+        'tel'
+      ],
+      target: 'mobileNo',
+      type: 'phone'
+    },
+    {
+      keys: [
+        'transportcompany',
+        'transportcompanyname',
+        'company',
+        'companyname',
+        'transport',
+        'transporter',
+        'employer',
+        'organization',
+        'firm'
+      ],
+      target: 'transportCompany',
+      type: 'text'
+    },
+    {
+      keys: ['bloodgroup', 'blood', 'bloodtype', 'bg', 'bloodgrp'],
+      target: 'bloodGroup',
+      type: 'dropdown',
+      options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+    },
+    {
+      keys: ['status', 'membershipstatus', 'memberstatus', 'state'],
+      target: 'status',
+      type: 'text',
+      options: ['Active', 'Inactive']
+    },
+    {
+      keys: ['emergencycontact', 'emergencyphone', 'emergencyno', 'emergencynumber', 'emergency', 'sos'],
+      target: 'emergencyContact',
+      type: 'phone'
+    },
+    {
+      keys: ['livingarea', 'livingareauae', 'area', 'city', 'location', 'residence', 'uaeaddress'],
+      target: 'livingArea',
+      type: 'text'
+    },
+    {
+      keys: ['addressinindia', 'indiaaddress', 'homeaddress', 'permanentaddress', 'nativeaddress'],
+      target: 'addressInIndia',
+      type: 'textarea'
+    }
   ];
 
   for (const cm of coreMappings) {
@@ -861,11 +944,14 @@ export const executeSmartImport = async ({
       // Check if this column represents the primary Member ID
       if (mapping.isMemberId || mapping.fieldKey === 'memberId' || isMemberIdHeader(mapping.header)) {
         if (cleanVal) {
-          suppliedMemberId = cleanVal;
-          customFields.ktpdNo = cleanVal;
-          customFields[mapping.fieldKey || 'ktpd_id_no'] = cleanVal;
-          if (mapping.customFieldKey) {
-            customFields[mapping.customFieldKey] = cleanVal;
+          const isExplicitKtpdHeader = /ktpd|membership|member/i.test(mapping.header || mapping.fieldKey);
+          if (!suppliedMemberId || isExplicitKtpdHeader) {
+            suppliedMemberId = cleanVal;
+            customFields.ktpdNo = cleanVal;
+            customFields[mapping.fieldKey || 'ktpd_id_no'] = cleanVal;
+            if (mapping.customFieldKey) {
+              customFields[mapping.customFieldKey] = cleanVal;
+            }
           }
         }
       } else if (
@@ -883,7 +969,14 @@ export const executeSmartImport = async ({
           'status'
         ].includes(mapping.fieldKey)
       ) {
-        if (mapping.fieldKey === 'bloodGroup') {
+        if (mapping.fieldKey === 'status') {
+          const s = cleanVal.trim().toLowerCase();
+          if (s === 'inactive' || s === 'disabled' || s === 'suspended' || s === 'expired') {
+            standardFields.status = 'Inactive';
+          } else {
+            standardFields.status = 'Active';
+          }
+        } else if (mapping.fieldKey === 'bloodGroup') {
           let bg = cleanVal.toUpperCase();
           if (bg.includes('POS')) bg = bg.replace(/[\s\-_]?(POSITIVE|POS)/i, '+');
           if (bg.includes('NEG')) bg = bg.replace(/[\s\-_]?(NEGATIVE|NEG)/i, '-');
@@ -908,8 +1001,11 @@ export const executeSmartImport = async ({
             mapping.fieldKey === 'ktpd_no' ||
             isMemberIdHeader(mapping.header))
         ) {
-          suppliedMemberId = cleanVal;
-          customFields.ktpdNo = cleanVal;
+          const isExplicitKtpdHeader = /ktpd|membership|member/i.test(mapping.header || mapping.fieldKey);
+          if (!suppliedMemberId || isExplicitKtpdHeader) {
+            suppliedMemberId = cleanVal;
+            customFields.ktpdNo = cleanVal;
+          }
         }
 
         // Transport company name helper
@@ -936,7 +1032,21 @@ export const executeSmartImport = async ({
       }
     }
 
-    const memberName = standardFields.name || (suppliedMemberId ? `Member ${suppliedMemberId}` : '');
+    let memberName = standardFields.name;
+    if (!memberName) {
+      for (const [k, v] of Object.entries(customFields)) {
+        if (/name|driver|person/i.test(k) && v && String(v).trim()) {
+          memberName = String(v).trim();
+          standardFields.name = memberName;
+          break;
+        }
+      }
+    }
+    if (!memberName && suppliedMemberId) {
+      memberName = `Member ${suppliedMemberId}`;
+      standardFields.name = memberName;
+    }
+
     if (!memberName && !suppliedMemberId) {
       skippedMembers.push({ rowNumber: rowNum, reason: 'Row has neither a Member Name nor a Member ID.' });
       continue;
@@ -1017,6 +1127,11 @@ export const executeSmartImport = async ({
       }
 
       if (duplicateStrategy === 'skip') {
+        if (existingDoc.isDeleted) {
+          existingDoc.isDeleted = false;
+          existingDoc.deletedAt = null;
+          await existingDoc.save();
+        }
         skippedMembers.push({
           rowNumber: rowNum,
           memberId: suppliedMemberId || existingDoc.memberId,
@@ -1094,6 +1209,8 @@ export const executeSmartImport = async ({
       addressInIndia: standardFields.addressInIndia || '',
       bloodGroup: standardFields.bloodGroup || '',
       status: standardFields.status || 'Active',
+      isDeleted: false,
+      deletedAt: null,
       customFields: {
         ...customFields,
         ktpdNo: finalMemberId,

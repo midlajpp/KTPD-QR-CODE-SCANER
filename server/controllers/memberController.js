@@ -73,7 +73,7 @@ export const getMembers = async (req, res, next) => {
       sortOrder = 'desc'
     } = req.query;
 
-    const query = { isDeleted: false };
+    const query = { isDeleted: { $ne: true } };
 
     // Status filter
     if (status && ['Active', 'Inactive'].includes(status)) {
@@ -959,7 +959,7 @@ export const importCsv = async (req, res, next) => {
 
 const buildExportQuery = (req) => {
   const { status, ids, search } = req.query;
-  const query = { isDeleted: false };
+  const query = { isDeleted: { $ne: true } };
 
   if (status && ['Active', 'Inactive'].includes(status)) {
     query.status = status;
@@ -1124,8 +1124,9 @@ export const exportCompleteZip = async (req, res, next) => {
       ipAddress: req.ip || ''
     });
 
+    const filename = req.path.includes('members-qr-zip') ? 'KTPD-Members-and-QR.zip' : 'KTPD-Export.zip';
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', 'attachment; filename="KTPD-Members-and-QR.zip"');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
     await createCompleteExportZipStream(members, res);
   } catch (error) {

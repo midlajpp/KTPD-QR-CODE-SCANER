@@ -14,6 +14,10 @@ const Layout = () => {
     setRefreshTrigger((prev) => prev + 1);
   };
 
+  const triggerRefresh = () => {
+    setRefreshTrigger((prev) => prev + 1);
+  };
+
   return (
     <div className="app-layout">
       <Sidebar
@@ -26,7 +30,13 @@ const Layout = () => {
           onOpenAddMember={() => setIsAddModalOpen(true)}
         />
         <main className="page-container">
-          <Outlet context={{ refreshTrigger, openAddModal: () => setIsAddModalOpen(true) }} />
+          <Outlet
+            context={{
+              refreshTrigger,
+              triggerRefresh,
+              openAddModal: () => setIsAddModalOpen(true)
+            }}
+          />
         </main>
       </div>
 

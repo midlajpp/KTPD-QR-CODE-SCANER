@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useOutletContext, Link, useNavigate } from 'react-router-dom';
+import { useOutletContext, Link, useNavigate, useLocation } from 'react-router-dom';
 import { memberService } from '../services/memberService';
 import { StatusBadge, BloodBadge } from '../components/Badge';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -38,12 +38,12 @@ const MembersListPage = () => {
   const [pagination, setPagination] = useState({ page: 1, limit: 15, total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
 
-  // Filters & Search
+  // Filters & Search (Default to newest first so newly created or imported members are immediately visible)
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [bloodGroupFilter, setBloodGroupFilter] = useState('');
-  const [sortBy, setSortBy] = useState('memberId');
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   // Selection
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -59,6 +59,20 @@ const MembersListPage = () => {
 
   const { showSuccess, showError } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Reset filters and ensure newest-first sort when arriving directly from import
+  useEffect(() => {
+    if (location.state?.fromImport) {
+      setSearch('');
+      setStatusFilter('');
+      setBloodGroupFilter('');
+      setSortBy('createdAt');
+      setSortOrder('desc');
+      // Clear navigation state so subsequent user actions aren't continually overridden
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const fetchMembers = async (page = 1) => {
     setLoading(true);

@@ -9,16 +9,16 @@ import AuditLog from '../models/AuditLog.js';
 export const getStats = async (req, res, next) => {
   try {
     const [totalMembers, activeMembers, inactiveMembers, bloodGroupAgg, companyAgg] = await Promise.all([
-      Member.countDocuments({ isDeleted: false }),
-      Member.countDocuments({ isDeleted: false, status: 'Active' }),
-      Member.countDocuments({ isDeleted: false, status: 'Inactive' }),
+      Member.countDocuments({ isDeleted: { $ne: true } }),
+      Member.countDocuments({ isDeleted: { $ne: true }, status: 'Active' }),
+      Member.countDocuments({ isDeleted: { $ne: true }, status: 'Inactive' }),
       Member.aggregate([
-        { $match: { isDeleted: false } },
+        { $match: { isDeleted: { $ne: true } } },
         { $group: { _id: '$bloodGroup', count: { $sum: 1 } } },
         { $sort: { count: -1 } }
       ]),
       Member.aggregate([
-        { $match: { isDeleted: false, transportCompany: { $ne: '' } } },
+        { $match: { isDeleted: { $ne: true }, transportCompany: { $ne: '' } } },
         { $group: { _id: '$transportCompany', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
         { $limit: 5 }
@@ -55,12 +55,12 @@ export const getStats = async (req, res, next) => {
 export const getRecent = async (req, res, next) => {
   try {
     const [recentlyAdded, recentlyUpdated, recentLogs] = await Promise.all([
-      Member.find({ isDeleted: false })
+      Member.find({ isDeleted: { $ne: true } })
         .sort({ createdAt: -1 })
         .limit(6)
         .select('memberId name transportCompany bloodGroup status createdAt')
         .lean(),
-      Member.find({ isDeleted: false })
+      Member.find({ isDeleted: { $ne: true } })
         .sort({ updatedAt: -1 })
         .limit(6)
         .select('memberId name transportCompany bloodGroup status updatedAt')

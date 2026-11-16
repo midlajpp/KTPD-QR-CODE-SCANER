@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { memberService } from '../services/memberService';
 import { useToast } from '../context/ToastContext';
 import Papa from 'papaparse';
@@ -51,6 +51,8 @@ const ImportPage = () => {
   const fileInputRef = useRef(null);
   const { showSuccess, showError } = useToast();
   const navigate = useNavigate();
+  const outletCtx = useOutletContext();
+  const triggerRefresh = outletCtx?.triggerRefresh;
 
   // Template download
   const handleDownloadTemplate = async () => {
@@ -227,6 +229,9 @@ const ImportPage = () => {
       const res = await memberService.importCsv(formData);
       if (res.success) {
         setImportResult(res);
+        if (typeof triggerRefresh === 'function') {
+          triggerRefresh();
+        }
         showSuccess(res.message || 'Import completed successfully!');
       }
     } catch (err) {
@@ -408,7 +413,13 @@ const ImportPage = () => {
               <RotateCcw size={16} />
               <span>Import Another</span>
             </button>
-            <button className="btn btn-primary" onClick={() => navigate('/members')}>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                if (typeof triggerRefresh === 'function') triggerRefresh();
+                navigate('/members', { state: { fromImport: true, timestamp: Date.now() } });
+              }}
+            >
               <span>View Members</span>
               <ArrowRight size={16} />
             </button>

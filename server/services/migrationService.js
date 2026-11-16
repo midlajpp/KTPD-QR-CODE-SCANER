@@ -42,7 +42,7 @@ export const restoreSandboxDataIfEmpty = initializeFieldDefinitions;
  */
 export const syncMemberIds = async () => {
   try {
-    const members = await Member.find({ isDeleted: false });
+    const members = await Member.find({ isDeleted: { $ne: true } });
     let updatedCount = 0;
 
     for (const member of members) {
