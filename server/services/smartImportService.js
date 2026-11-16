@@ -15,6 +15,24 @@ export const normalizeString = (str) => {
 };
 
 /**
+ * Strips common optional suffixes to compare root semantic meanings.
+ * e.g. "transportcompanyname" -> "transportcompany", "transportcompany" -> "transportcompany"
+ * e.g. "mobilenumber" -> "mobile", "mobileno" -> "mobile", "mobile" -> "mobile"
+ * e.g. "passportnumber" -> "passport", "passportno" -> "passport", "passport" -> "passport"
+ * e.g. "vehiclenumber" -> "vehicle", "vehicleno" -> "vehicle", "vehicle" -> "vehicle"
+ */
+export const getFieldSemanticRoot = (str) => {
+  const clean = String(str || '')
+    .replace(/\([^)]*\)/g, '')
+    .trim();
+  const norm = normalizeString(clean);
+  if (!norm || norm.length < 3) return norm;
+
+  const root = norm.replace(/(name|names|number|no|num|details|info|address)$/, '');
+  return root.length >= 3 ? root : norm;
+};
+
+/**
  * Checks if a CSV column header designates the primary KTPD Membership ID.
  * Excludes unrelated IDs such as Emirates ID, Passport, National ID, or Visa.
  */
@@ -177,15 +195,19 @@ export const inferFieldType = (headerName, sampleValues = []) => {
 /**
  * Matches a CSV header against existing fields in MongoDB while strictly preserving
  * the CSV header's original name, spelling, casing, and spaces as the fieldLabel.
+ * Reuses existing custom fields and handles equivalent name variations (e.g. Transport Company,
+ * transport_company, transport-company, Transport Company Name).
  */
-export const matchHeaderToExistingField = (headerName, activeFields = []) => {
+export const matchHeaderToExistingField = (headerName, allFields = []) => {
   const rawLabel = String(headerName || '').trim();
   const norm = normalizeString(rawLabel);
+  const root = getFieldSemanticRoot(rawLabel);
+
+  if (!norm) return null;
 
   // 1. Check if column represents primary Member ID
   if (isMemberIdHeader(rawLabel)) {
-    // Find if a custom field exists in MongoDB for KTPD ID
-    const existingIdField = activeFields.find(
+    const existingIdField = allFields.find(
       (f) =>
         f.fieldKey === 'memberId' ||
         f.fieldKey === 'ktpd_id_no' ||
@@ -207,83 +229,83 @@ export const matchHeaderToExistingField = (headerName, activeFields = []) => {
     };
   }
 
-  // 2. Direct match against active MemberField definitions in MongoDB (by label or key)
-  for (const field of activeFields) {
+  // 2. Direct exact match against existing field definitions (by fieldLabel or fieldKey)
+  for (const field of allFields) {
     const fieldKeyNorm = normalizeString(field.fieldKey);
     const fieldLabelNorm = normalizeString(field.fieldLabel);
 
-    if (fieldLabelNorm === norm || fieldKeyNorm === norm) {
+    if (
+      field.fieldKey.toLowerCase() === rawLabel.toLowerCase() ||
+      (field.fieldLabel && field.fieldLabel.trim().toLowerCase() === rawLabel.toLowerCase()) ||
+      fieldKeyNorm === norm ||
+      fieldLabelNorm === norm
+    ) {
       return {
         isExisting: true,
         isMemberId: field.fieldKey === 'memberId',
         matchedFieldKey: field.fieldKey,
         fieldLabel: rawLabel, // PRESERVE EXACT CSV HEADER NAME
-        fieldType: field.fieldType,
-        isSystemField: field.isSystemField || false,
-        options: field.options || []
+        fieldType: field.fieldType || 'text',
+        isSystemField: Boolean(field.isSystemField),
+        options: field.options || [],
+        fieldDoc: field
       };
     }
   }
 
-  // 3. Match unambiguous core system properties
-  if (['name', 'fullname', 'membername', 'drivername', 'nameofthemember'].includes(norm)) {
-    return {
-      isExisting: true,
-      isMemberId: false,
-      matchedFieldKey: 'name',
-      fieldLabel: rawLabel,
-      fieldType: 'text',
-      isSystemField: true,
-      options: []
-    };
+  // 3. Normalized semantic root match (handles "Transport Company" vs "Transport Company Name" or "transport_company_name")
+  if (root && root.length >= 3) {
+    for (const field of allFields) {
+      const fieldKeyRoot = getFieldSemanticRoot(field.fieldKey);
+      const fieldLabelRoot = getFieldSemanticRoot(field.fieldLabel);
+
+      if (fieldLabelRoot === root || fieldKeyRoot === root) {
+        return {
+          isExisting: true,
+          isMemberId: field.fieldKey === 'memberId',
+          matchedFieldKey: field.fieldKey,
+          fieldLabel: rawLabel, // PRESERVE EXACT CSV HEADER NAME
+          fieldType: field.fieldType || 'text',
+          isSystemField: Boolean(field.isSystemField),
+          options: field.options || [],
+          fieldDoc: field
+        };
+      }
+    }
   }
 
-  if (['emiratesid', 'eid', 'emiratesidno', 'emiratescardno'].includes(norm)) {
-    return {
-      isExisting: true,
-      isMemberId: false,
-      matchedFieldKey: 'emiratesId',
-      fieldLabel: rawLabel,
-      fieldType: 'text',
-      isSystemField: true,
-      options: []
-    };
-  }
+  // 4. Core system properties fallback
+  const coreMappings = [
+    { keys: ['name', 'fullname', 'membername', 'drivername', 'nameofthemember'], target: 'name', type: 'text' },
+    { keys: ['emiratesid', 'eid', 'emiratesidno', 'emiratescardno'], target: 'emiratesId', type: 'text' },
+    { keys: ['mobileno', 'mobile', 'phoneno', 'phone', 'cellphone', 'mobilenumber', 'phonenumber'], target: 'mobileNo', type: 'phone' },
+    { keys: ['transportcompany', 'transportcompanyname', 'company', 'companyname', 'transport'], target: 'transportCompany', type: 'text' },
+    { keys: ['bloodgroup', 'blood', 'bloodtype', 'bg'], target: 'bloodGroup', type: 'dropdown', options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] },
+    { keys: ['status', 'membershipstatus'], target: 'status', type: 'text', options: ['Active', 'Inactive'] },
+    { keys: ['emergencycontact', 'emergencyphone', 'emergencyno', 'emergencynumber'], target: 'emergencyContact', type: 'phone' },
+    { keys: ['livingarea', 'livingareauae', 'area', 'city'], target: 'livingArea', type: 'text' },
+    { keys: ['addressinindia', 'indiaaddress', 'homeaddress'], target: 'addressInIndia', type: 'textarea' }
+  ];
 
-  if (['mobileno', 'mobile', 'phoneno', 'phone', 'cellphone'].includes(norm)) {
-    return {
-      isExisting: true,
-      isMemberId: false,
-      matchedFieldKey: 'mobileNo',
-      fieldLabel: rawLabel,
-      fieldType: 'phone',
-      isSystemField: true,
-      options: []
-    };
-  }
-
-  if (['bloodgroup', 'blood', 'bloodtype', 'bg'].includes(norm)) {
-    return {
-      isExisting: true,
-      isMemberId: false,
-      matchedFieldKey: 'bloodGroup',
-      fieldLabel: rawLabel,
-      fieldType: 'dropdown',
-      isSystemField: true,
-      options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
-    };
-  }
-
-  if (['status', 'membershipstatus'].includes(norm)) {
-    return {
-      isExisting: true,
-      isMemberId: false,
-      matchedFieldKey: 'status',
-      fieldLabel: rawLabel,
-      fieldType: 'text',
-      isSystemField: true,
-      options: ['Active', 'Inactive']
-    };
+  for (const cm of coreMappings) {
+    if (cm.keys.includes(norm) || (root && cm.keys.some((k) => getFieldSemanticRoot(k) === root))) {
+      // Find if this field exists in allFields
+      const existing = allFields.find(
+        (f) =>
+          f.fieldKey === cm.target ||
+          (cm.target === 'transportCompany' && (f.fieldKey === 'transport_company_name' || f.fieldKey === 'transportCompany'))
+      );
+      const finalKey = existing ? existing.fieldKey : cm.target;
+      return {
+        isExisting: true,
+        isMemberId: false,
+        matchedFieldKey: finalKey,
+        fieldLabel: rawLabel,
+        fieldType: existing?.fieldType || cm.type,
+        isSystemField: existing?.isSystemField !== undefined ? existing.isSystemField : true,
+        options: cm.options || existing?.options || []
+      };
+    }
   }
 
   // No match: return null so caller treats this as a new dynamic custom field
@@ -321,9 +343,9 @@ export const analyzeCsvContent = async (csvContent) => {
 
   const rawHeaders = Object.keys(rows[0] || {}).map((h) => h.trim()).filter(Boolean);
 
-  // Fetch all existing fields from MongoDB
-  const activeFields = await MemberField.find({ isArchived: false }).lean();
-  const existingKeySet = new Set(activeFields.map((f) => f.fieldKey));
+  // Fetch all existing fields from MongoDB (both active and archived to prevent duplicate key index clashes)
+  const allDbFields = await MemberField.find({}).lean();
+  const allExistingKeys = new Set(allDbFields.map((f) => f.fieldKey));
 
   // Analyze each column in its original CSV sequence
   const columnAnalyses = [];
@@ -331,7 +353,7 @@ export const analyzeCsvContent = async (csvContent) => {
 
   for (const header of rawHeaders) {
     const sampleValues = rows.slice(0, 20).map((r) => r[header]);
-    const matched = matchHeaderToExistingField(header, activeFields);
+    const matched = matchHeaderToExistingField(header, allDbFields);
 
     if (matched) {
       columnAnalyses.push({
@@ -352,7 +374,7 @@ export const analyzeCsvContent = async (csvContent) => {
       let baseKey = sanitizeFieldKey(header);
       let uniqueKey = baseKey;
       let counter = 1;
-      while (existingKeySet.has(uniqueKey) || allocatedNewKeys.has(uniqueKey)) {
+      while (allExistingKeys.has(uniqueKey) || allocatedNewKeys.has(uniqueKey)) {
         uniqueKey = `${baseKey}_${counter++}`;
       }
       allocatedNewKeys.add(uniqueKey);
@@ -492,6 +514,14 @@ export const analyzeCsvContent = async (csvContent) => {
     columns: columnAnalyses,
     newFieldsToCreate: columnAnalyses.filter((c) => !c.isExisting),
     existingFieldsMatched: columnAnalyses.filter((c) => c.isExisting),
+    availableFields: allDbFields
+      .filter((f) => !f.isArchived)
+      .map((f) => ({
+        fieldKey: f.fieldKey,
+        fieldLabel: f.fieldLabel,
+        fieldType: f.fieldType,
+        isSystemField: f.isSystemField
+      })),
     previewRows: rows.slice(0, 15),
     duplicateRows,
     invalidRows,
@@ -531,43 +561,161 @@ export const executeSmartImport = async ({
     throw new Error('CSV file has no data rows to import.');
   }
 
-  // 1. Create missing custom fields in MongoDB
+  // 1. Fetch ALL existing fields from MongoDB (including archived ones to prevent index clashes)
   const newFieldsCreated = [];
-  const activeFields = await MemberField.find({ isArchived: false });
-  const existingKeys = new Set(activeFields.map((f) => f.fieldKey));
-  const existingLabels = new Set(activeFields.map((f) => f.fieldLabel.trim().toLowerCase()));
+  const allDbFields = await MemberField.find({});
+  const dbFieldByKey = new Map();
+  const dbFieldByLabel = new Map();
+  const dbFieldByNorm = new Map();
+  const dbFieldByRoot = new Map();
+
+  allDbFields.forEach((f) => {
+    dbFieldByKey.set(f.fieldKey, f);
+    if (f.fieldLabel) {
+      dbFieldByLabel.set(f.fieldLabel.trim().toLowerCase(), f);
+      dbFieldByNorm.set(normalizeString(f.fieldLabel), f);
+      const labelRoot = getFieldSemanticRoot(f.fieldLabel);
+      if (labelRoot && labelRoot.length >= 3) {
+        dbFieldByRoot.set(labelRoot, f);
+      }
+    }
+    dbFieldByNorm.set(normalizeString(f.fieldKey), f);
+    const keyRoot = getFieldSemanticRoot(f.fieldKey);
+    if (keyRoot && keyRoot.length >= 3) {
+      dbFieldByRoot.set(keyRoot, f);
+    }
+  });
 
   const validMappings = columnMappings.filter((m) => m.included !== false);
 
   for (let order = 0; order < validMappings.length; order++) {
     const mapping = validMappings[order];
-    if (
-      !mapping.isExisting &&
-      !existingKeys.has(mapping.fieldKey) &&
-      !existingLabels.has((mapping.fieldLabel || mapping.header).trim().toLowerCase()) &&
-      mapping.fieldKey !== 'memberId'
-    ) {
-      const createdField = await MemberField.create({
-        fieldKey: mapping.fieldKey,
-        fieldLabel: mapping.fieldLabel || mapping.header, // PRESERVES EXACT CSV HEADER
-        fieldType: mapping.fieldType || 'text',
-        isSystemField: false,
-        isSystemLocked: false,
-        enabled: true,
-        showInForm: true,
-        showInTable: true,
-        showInCsv: true,
-        showOnPublicProfile: true,
-        options: mapping.options || [],
-        displayOrder: 200 + order
-      });
-      existingKeys.add(mapping.fieldKey);
-      existingLabels.add(createdField.fieldLabel.trim().toLowerCase());
-      newFieldsCreated.push({
-        fieldKey: createdField.fieldKey,
-        fieldLabel: createdField.fieldLabel,
-        fieldType: createdField.fieldType
-      });
+    if (mapping.fieldKey === 'memberId' || isMemberIdHeader(mapping.header)) {
+      continue;
+    }
+
+    // A. Check whether a matching field already exists in the database
+    let existingField = dbFieldByKey.get(mapping.fieldKey);
+
+    if (!existingField && mapping.fieldLabel) {
+      existingField =
+        dbFieldByLabel.get(mapping.fieldLabel.trim().toLowerCase()) ||
+        dbFieldByNorm.get(normalizeString(mapping.fieldLabel));
+    }
+
+    if (!existingField && mapping.header) {
+      existingField =
+        dbFieldByLabel.get(mapping.header.trim().toLowerCase()) ||
+        dbFieldByNorm.get(normalizeString(mapping.header));
+    }
+
+    if (!existingField) {
+      const headerRoot = getFieldSemanticRoot(mapping.fieldLabel || mapping.header);
+      if (headerRoot && headerRoot.length >= 3) {
+        existingField = dbFieldByRoot.get(headerRoot);
+      }
+    }
+
+    // Double check directly against MongoDB in case of concurrent updates
+    if (!existingField && mapping.fieldKey) {
+      existingField = await MemberField.findOne({ fieldKey: mapping.fieldKey });
+    }
+
+    // If an existing field definition is found:
+    if (existingField) {
+      // Re-enable and un-archive if it was archived
+      if (existingField.isArchived || !existingField.enabled) {
+        existingField.isArchived = false;
+        existingField.enabled = true;
+        await existingField.save();
+      }
+
+      // Reuse the existing field definition
+      mapping.fieldKey = existingField.fieldKey;
+      mapping.isExisting = true;
+      mapping.fieldType = existingField.fieldType || mapping.fieldType || 'text';
+      continue; // Strictly DO NOT attempt to create the field again!
+    }
+
+    // B. Create genuinely new custom field
+    if (!mapping.isExisting) {
+      let baseKey = sanitizeFieldKey(mapping.fieldKey || mapping.fieldLabel || mapping.header);
+      let candidateKey = baseKey;
+      let counter = 1;
+
+      // Ensure key is genuinely unique in MongoDB
+      while (dbFieldByKey.has(candidateKey) || (await MemberField.findOne({ fieldKey: candidateKey }))) {
+        const clash = dbFieldByKey.get(candidateKey) || (await MemberField.findOne({ fieldKey: candidateKey }));
+        if (
+          clash &&
+          (normalizeString(clash.fieldLabel) === normalizeString(mapping.fieldLabel || mapping.header) ||
+            normalizeString(clash.fieldKey) === normalizeString(mapping.fieldKey || mapping.header) ||
+            getFieldSemanticRoot(clash.fieldLabel) === getFieldSemanticRoot(mapping.fieldLabel || mapping.header))
+        ) {
+          // Re-use matching clash field
+          if (clash.isArchived || !clash.enabled) {
+            clash.isArchived = false;
+            clash.enabled = true;
+            await clash.save();
+          }
+          mapping.fieldKey = clash.fieldKey;
+          mapping.isExisting = true;
+          mapping.fieldType = clash.fieldType;
+          candidateKey = null;
+          break;
+        }
+
+        // Truly different field: generate safe unique key
+        candidateKey = `${baseKey}_${counter++}`;
+      }
+
+      if (!candidateKey) {
+        continue;
+      }
+
+      const finalKey = candidateKey;
+      mapping.fieldKey = finalKey;
+
+      try {
+        const createdField = await MemberField.create({
+          fieldKey: finalKey,
+          fieldLabel: mapping.fieldLabel || mapping.header, // PRESERVES EXACT CSV HEADER
+          fieldType: mapping.fieldType || 'text',
+          isSystemField: false,
+          isSystemLocked: false,
+          enabled: true,
+          showInForm: true,
+          showInTable: true,
+          showInCsv: true,
+          showOnPublicProfile: true,
+          options: mapping.options || [],
+          displayOrder: 200 + order
+        });
+
+        dbFieldByKey.set(createdField.fieldKey, createdField);
+        dbFieldByLabel.set(createdField.fieldLabel.trim().toLowerCase(), createdField);
+        dbFieldByNorm.set(normalizeString(createdField.fieldLabel), createdField);
+        dbFieldByNorm.set(normalizeString(createdField.fieldKey), createdField);
+
+        newFieldsCreated.push({
+          fieldKey: createdField.fieldKey,
+          fieldLabel: createdField.fieldLabel,
+          fieldType: createdField.fieldType
+        });
+      } catch (createErr) {
+        if (createErr.code === 11000) {
+          // Concurrently created or existing in index: gracefully reuse
+          const matched = await MemberField.findOne({ fieldKey: finalKey });
+          if (matched) {
+            mapping.fieldKey = matched.fieldKey;
+            mapping.isExisting = true;
+          } else {
+            throw createErr;
+          }
+        } else {
+          throw createErr;
+        }
+      }
     }
   }
 
@@ -650,6 +798,10 @@ export const executeSmartImport = async ({
           standardFields.bloodGroup = bg;
         } else {
           standardFields[mapping.fieldKey] = cleanVal;
+          if (mapping.fieldKey === 'transportCompany' && cleanVal) {
+            customFields.transportCompany = cleanVal;
+            customFields.transport_company_name = cleanVal;
+          }
         }
       } else {
         // Dynamic custom field
@@ -670,10 +822,14 @@ export const executeSmartImport = async ({
         // Transport company name helper
         if (
           cleanVal &&
-          !standardFields.transportCompany &&
-          (mapping.fieldKey.includes('transport') || mapping.fieldKey.includes('company'))
+          (mapping.fieldKey === 'transport_company_name' ||
+            mapping.fieldKey === 'transportCompany' ||
+            mapping.fieldKey.includes('transport') ||
+            mapping.fieldKey.includes('company'))
         ) {
           standardFields.transportCompany = cleanVal;
+          customFields.transportCompany = cleanVal;
+          customFields.transport_company_name = cleanVal;
         }
 
         // Emergency contact helper

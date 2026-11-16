@@ -40,6 +40,7 @@ const ImportPage = () => {
   const [analyzing, setAnalyzing] = useState(false);
   const [previewData, setPreviewData] = useState(null);
   const [columnConfigs, setColumnConfigs] = useState([]);
+  const [availableFields, setAvailableFields] = useState([]);
   const [duplicateStrategy, setDuplicateStrategy] = useState('skip'); // 'skip' | 'update' | 'cancel'
   const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -80,6 +81,7 @@ const ImportPage = () => {
     setAnalyzing(true);
     setPreviewData(null);
     setColumnConfigs([]);
+    setAvailableFields([]);
     try {
       const formData = new FormData();
       formData.append('file', csvFile);
@@ -87,6 +89,7 @@ const ImportPage = () => {
       const res = await memberService.previewImportCsv(formData);
       if (res.success) {
         setPreviewData(res);
+        setAvailableFields(res.availableFields || []);
         setColumnConfigs(
           res.columns.map((col) => ({
             header: col.header,
@@ -133,6 +136,43 @@ const ImportPage = () => {
     setColumnConfigs((prev) =>
       prev.map((c, i) => (i === index ? { ...c, fieldType: newType } : c))
     );
+  };
+
+  const handleFieldMappingChange = (index, targetKey) => {
+    if (targetKey === '__NEW__') {
+      setColumnConfigs((prev) =>
+        prev.map((c, i) =>
+          i === index
+            ? {
+                ...c,
+                isExisting: false,
+                isSystemField: false,
+                fieldKey: c.header.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 50),
+                fieldLabel: c.header.trim(),
+                fieldType: 'text'
+              }
+            : c
+        )
+      );
+    } else {
+      const matchedField = availableFields.find((f) => f.fieldKey === targetKey);
+      if (matchedField) {
+        setColumnConfigs((prev) =>
+          prev.map((c, i) =>
+            i === index
+              ? {
+                  ...c,
+                  isExisting: true,
+                  isSystemField: Boolean(matchedField.isSystemField),
+                  fieldKey: matchedField.fieldKey,
+                  fieldLabel: matchedField.fieldLabel,
+                  fieldType: matchedField.fieldType || 'text'
+                }
+              : c
+          )
+        );
+      }
+    }
   };
 
   // Execute Smart Import
@@ -191,6 +231,7 @@ const ImportPage = () => {
     setFile(null);
     setPreviewData(null);
     setColumnConfigs([]);
+    setAvailableFields([]);
     setImportResult(null);
   };
 
@@ -551,14 +592,38 @@ const ImportPage = () => {
                           <span className="badge badge-purple" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
                             <ShieldCheck size={12} /> Official Member ID
                           </span>
-                        ) : col.isExisting ? (
-                          <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>
-                            <Check size={12} /> Existing Field
-                          </span>
                         ) : (
-                          <span className="badge badge-purple" style={{ fontSize: '0.75rem' }}>
-                            <Sparkles size={12} /> New Field to Create
-                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <select
+                              className="form-select"
+                              value={col.isExisting ? col.fieldKey : '__NEW__'}
+                              onChange={(e) => handleFieldMappingChange(idx, e.target.value)}
+                              disabled={!col.included}
+                              style={{ minWidth: 200, padding: '0.35rem 0.5rem', fontSize: '0.8125rem' }}
+                            >
+                              <optgroup label="Action / New Field">
+                                <option value="__NEW__">+ Create as New Custom Field</option>
+                              </optgroup>
+                              {availableFields && availableFields.length > 0 && (
+                                <optgroup label="Map to Existing Database Field">
+                                  {availableFields.map((f) => (
+                                    <option key={f.fieldKey} value={f.fieldKey}>
+                                      {f.fieldLabel || f.fieldKey} ({f.fieldKey})
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
+                            </select>
+                            {col.isExisting ? (
+                              <span className="badge badge-success" style={{ fontSize: '0.7rem', width: 'fit-content' }}>
+                                <Check size={11} /> Reusing Existing Field
+                              </span>
+                            ) : (
+                              <span className="badge badge-purple" style={{ fontSize: '0.7rem', width: 'fit-content' }}>
+                                <Sparkles size={11} /> New Field to Create
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td>
