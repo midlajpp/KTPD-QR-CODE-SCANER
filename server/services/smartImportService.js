@@ -155,20 +155,16 @@ export const inferFieldType = (headerName, sampleValues = []) => {
     return 'phone';
   }
 
-  // Alphanumeric identifier check
+  // Multi-line text / Textarea (Address, Notes, Remarks, Description)
   if (
-    norm.includes('id') ||
-    norm.includes('passport') ||
-    norm.includes('license') ||
-    norm.includes('licence') ||
-    norm.includes('registration') ||
-    norm.includes('badge') ||
-    norm.includes('code') ||
-    norm.includes('ktpd') ||
-    norm.includes('number') ||
-    norm.includes('no')
+    norm.includes('address') ||
+    norm.includes('note') ||
+    norm.includes('remark') ||
+    norm.includes('details') ||
+    norm.includes('description') ||
+    norm.includes('comment')
   ) {
-    return 'alphanumeric';
+    return 'textarea';
   }
 
   // Email
@@ -189,19 +185,28 @@ export const inferFieldType = (headerName, sampleValues = []) => {
   }
 
   // Blood group
-  if (norm.includes('blood')) {
+  if (norm.includes('blood') || norm === 'bg') {
     return 'dropdown';
   }
 
-  // Textarea / Address
+  // Alphanumeric identifier check
   if (
-    norm.includes('address') ||
-    norm.includes('notes') ||
-    norm.includes('remark') ||
-    norm.includes('details') ||
-    norm.includes('description')
+    norm.includes('emirates') ||
+    norm.includes('eid') ||
+    norm.includes('passport') ||
+    norm.includes('license') ||
+    norm.includes('licence') ||
+    norm.includes('registration') ||
+    norm.includes('badge') ||
+    norm.includes('code') ||
+    norm.includes('ktpd') ||
+    norm.includes('number') ||
+    norm.includes('num') ||
+    norm === 'no' ||
+    norm.endsWith('no') ||
+    (norm.includes('id') && !norm.includes('india') && !norm.includes('middle') && !norm.includes('guid'))
   ) {
-    return 'textarea';
+    return 'alphanumeric';
   }
 
   // Value-based heuristics
@@ -220,6 +225,30 @@ export const inferFieldType = (headerName, sampleValues = []) => {
   }
 
   return 'text';
+};
+
+/**
+ * Calculates Levenshtein distance between two strings for typo tolerance / spelling mistakes.
+ */
+export const levenshteinDistance = (a, b) => {
+  const s1 = String(a || '').toLowerCase();
+  const s2 = String(b || '').toLowerCase();
+  const track = Array(s2.length + 1)
+    .fill(null)
+    .map(() => Array(s1.length + 1).fill(null));
+  for (let i = 0; i <= s1.length; i += 1) track[0][i] = i;
+  for (let j = 0; j <= s2.length; j += 1) track[j][0] = j;
+  for (let j = 1; j <= s2.length; j += 1) {
+    for (let i = 1; i <= s1.length; i += 1) {
+      const indicator = s1[i - 1] === s2[j - 1] ? 0 : 1;
+      track[j][i] = Math.min(
+        track[j][i - 1] + 1, // deletion
+        track[j - 1][i] + 1, // insertion
+        track[j - 1][i - 1] + indicator // substitution
+      );
+    }
+  }
+  return track[s2.length][s1.length];
 };
 
 /**
@@ -248,11 +277,11 @@ export const matchHeaderToExistingField = (headerName, allFields = []) => {
     );
 
     return {
-      isExisting: true,
+      isExisting: Boolean(existingIdField),
       isMemberId: true,
-      matchedFieldKey: 'memberId',
+      matchedFieldKey: existingIdField ? existingIdField.fieldKey : 'memberId',
       customFieldKey: existingIdField ? existingIdField.fieldKey : 'ktpd_id_no',
-      fieldLabel: rawLabel, // PRESERVE EXACT CSV HEADER NAME
+      fieldLabel: existingIdField?.fieldLabel || rawLabel, // PRESERVE EXACT CSV HEADER NAME
       fieldType: 'alphanumeric',
       isSystemField: true,
       options: []
@@ -274,7 +303,7 @@ export const matchHeaderToExistingField = (headerName, allFields = []) => {
         isExisting: true,
         isMemberId: field.fieldKey === 'memberId',
         matchedFieldKey: field.fieldKey,
-        fieldLabel: rawLabel, // PRESERVE EXACT CSV HEADER NAME
+        fieldLabel: field.fieldLabel || rawLabel, // PRESERVE EXACT CSV HEADER NAME
         fieldType: field.fieldType || 'text',
         isSystemField: Boolean(field.isSystemField),
         options: field.options || [],
@@ -294,7 +323,7 @@ export const matchHeaderToExistingField = (headerName, allFields = []) => {
           isExisting: true,
           isMemberId: field.fieldKey === 'memberId',
           matchedFieldKey: field.fieldKey,
-          fieldLabel: rawLabel, // PRESERVE EXACT CSV HEADER NAME
+          fieldLabel: field.fieldLabel || rawLabel, // PRESERVE EXACT CSV HEADER NAME
           fieldType: field.fieldType || 'text',
           isSystemField: Boolean(field.isSystemField),
           options: field.options || [],
@@ -329,7 +358,7 @@ export const matchHeaderToExistingField = (headerName, allFields = []) => {
     {
       keys: ['emiratesid', 'eid', 'emiratesidno', 'emiratescardno', 'emiratesidnumber', 'nationalid', 'eidno'],
       target: 'emiratesId',
-      type: 'text'
+      type: 'alphanumeric'
     },
     {
       keys: [
@@ -403,14 +432,59 @@ export const matchHeaderToExistingField = (headerName, allFields = []) => {
       );
       const finalKey = existing ? existing.fieldKey : cm.target;
       return {
-        isExisting: true,
+        isExisting: Boolean(existing),
         isMemberId: false,
         matchedFieldKey: finalKey,
-        fieldLabel: rawLabel,
+        fieldLabel: existing?.fieldLabel || rawLabel,
         fieldType: existing?.fieldType || cm.type,
         isSystemField: existing?.isSystemField !== undefined ? existing.isSystemField : true,
         options: cm.options || existing?.options || []
       };
+    }
+  }
+
+  // 5. Fuzzy match against existing fields and core mappings for obvious spelling mistakes
+  for (const field of allFields) {
+    const fieldKeyNorm = normalizeString(field.fieldKey);
+    const fieldLabelNorm = normalizeString(field.fieldLabel);
+    if (
+      (fieldKeyNorm.length >= 4 && levenshteinDistance(norm, fieldKeyNorm) <= 2) ||
+      (fieldLabelNorm.length >= 4 && levenshteinDistance(norm, fieldLabelNorm) <= 2)
+    ) {
+      return {
+        isExisting: true,
+        isMemberId: field.fieldKey === 'memberId' || isMemberIdHeader(field.fieldKey),
+        matchedFieldKey: field.fieldKey,
+        fieldLabel: field.fieldLabel || rawLabel,
+        fieldType: field.fieldType || 'text',
+        isSystemField: Boolean(field.isSystemField),
+        options: field.options || [],
+        isFuzzyMatch: true,
+        fieldDoc: field
+      };
+    }
+  }
+
+  for (const cm of coreMappings) {
+    for (const k of cm.keys) {
+      if (k.length >= 4 && levenshteinDistance(norm, k) <= 2) {
+        const existing = allFields.find(
+          (f) =>
+            f.fieldKey === cm.target ||
+            (cm.target === 'transportCompany' && (f.fieldKey === 'transport_company_name' || f.fieldKey === 'transportCompany'))
+        );
+        const finalKey = existing ? existing.fieldKey : cm.target;
+        return {
+          isExisting: Boolean(existing),
+          isMemberId: false,
+          matchedFieldKey: finalKey,
+          fieldLabel: existing?.fieldLabel || rawLabel,
+          fieldType: existing?.fieldType || cm.type,
+          isSystemField: existing?.isSystemField !== undefined ? existing.isSystemField : true,
+          options: cm.options || existing?.options || [],
+          isFuzzyMatch: true
+        };
+      }
     }
   }
 
@@ -464,7 +538,7 @@ export const analyzeCsvContent = async (csvContent) => {
     if (matched) {
       columnAnalyses.push({
         header,
-        isExisting: true,
+        isExisting: Boolean(matched.isExisting),
         isMemberId: Boolean(matched.isMemberId),
         fieldKey: matched.matchedFieldKey,
         customFieldKey: matched.customFieldKey || matched.matchedFieldKey,
@@ -789,7 +863,43 @@ export const executeSmartImport = async ({
 
   for (let order = 0; order < validMappings.length; order++) {
     const mapping = validMappings[order];
+    const displayOrder = (order + 1) * 10;
+
+    // Handle Member ID column
     if (mapping.fieldKey === 'memberId' || isMemberIdHeader(mapping.header)) {
+      let idField = await MemberField.findOne({
+        $or: [{ fieldKey: 'memberId' }, { fieldKey: 'ktpd_id_no' }]
+      });
+
+      if (idField) {
+        idField.displayOrder = displayOrder;
+        if (idField.isArchived || !idField.enabled) {
+          idField.isArchived = false;
+          idField.enabled = true;
+        }
+        await idField.save();
+      } else {
+        idField = await MemberField.create({
+          fieldKey: 'memberId',
+          fieldLabel: mapping.fieldLabel || mapping.header || 'KTPD NO',
+          fieldType: 'alphanumeric',
+          isSystemField: true,
+          isSystemLocked: false,
+          enabled: true,
+          showInForm: true,
+          showInTable: true,
+          showInCsv: true,
+          showOnPublicProfile: true,
+          options: [],
+          displayOrder
+        });
+        newFieldsCreated.push({
+          fieldKey: idField.fieldKey,
+          fieldLabel: idField.fieldLabel,
+          fieldType: idField.fieldType
+        });
+      }
+      dbFieldByKey.set(idField.fieldKey, idField);
       continue;
     }
 
@@ -826,8 +936,9 @@ export const executeSmartImport = async ({
       if (existingField.isArchived || !existingField.enabled) {
         existingField.isArchived = false;
         existingField.enabled = true;
-        await existingField.save();
       }
+      existingField.displayOrder = displayOrder;
+      await existingField.save();
 
       // Reuse the existing field definition
       mapping.fieldKey = existingField.fieldKey;
@@ -837,7 +948,22 @@ export const executeSmartImport = async ({
     }
 
     // B. Create genuinely new custom field
-    if (!mapping.isExisting) {
+    const standardKeys = [
+      'name',
+      'emiratesId',
+      'mobileNo',
+      'transportCompany',
+      'emergencyContact',
+      'bloodGroup',
+      'livingArea',
+      'uae',
+      'india',
+      'addressInIndia',
+      'status'
+    ];
+
+    let finalKey = mapping.fieldKey;
+    if (!finalKey || (!standardKeys.includes(finalKey) && (dbFieldByKey.has(finalKey) || (await MemberField.findOne({ fieldKey: finalKey }))))) {
       let baseKey = sanitizeFieldKey(mapping.fieldKey || mapping.fieldLabel || mapping.header);
       let candidateKey = baseKey;
       let counter = 1;
@@ -872,48 +998,50 @@ export const executeSmartImport = async ({
         continue;
       }
 
-      const finalKey = candidateKey;
-      mapping.fieldKey = finalKey;
+      finalKey = candidateKey;
+    }
 
-      try {
-        const createdField = await MemberField.create({
-          fieldKey: finalKey,
-          fieldLabel: mapping.fieldLabel || mapping.header, // PRESERVES EXACT CSV HEADER
-          fieldType: mapping.fieldType || 'text',
-          isSystemField: false,
-          isSystemLocked: false,
-          enabled: true,
-          showInForm: true,
-          showInTable: true,
-          showInCsv: true,
-          showOnPublicProfile: true,
-          options: mapping.options || [],
-          displayOrder: 200 + order
-        });
+    mapping.fieldKey = finalKey;
+    const isSystem = standardKeys.includes(finalKey);
 
-        dbFieldByKey.set(createdField.fieldKey, createdField);
-        dbFieldByLabel.set(createdField.fieldLabel.trim().toLowerCase(), createdField);
-        dbFieldByNorm.set(normalizeString(createdField.fieldLabel), createdField);
-        dbFieldByNorm.set(normalizeString(createdField.fieldKey), createdField);
+    try {
+      const createdField = await MemberField.create({
+        fieldKey: finalKey,
+        fieldLabel: mapping.fieldLabel || mapping.header, // PRESERVES EXACT CSV HEADER
+        fieldType: mapping.fieldType || inferFieldType(mapping.header || finalKey),
+        isSystemField: isSystem,
+        isSystemLocked: false,
+        enabled: true,
+        showInForm: true,
+        showInTable: true,
+        showInCsv: true,
+        showOnPublicProfile: true,
+        options: mapping.options || (mapping.fieldType === 'dropdown' && /blood/i.test(finalKey) ? ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] : []),
+        displayOrder
+      });
 
-        newFieldsCreated.push({
-          fieldKey: createdField.fieldKey,
-          fieldLabel: createdField.fieldLabel,
-          fieldType: createdField.fieldType
-        });
-      } catch (createErr) {
-        if (createErr.code === 11000) {
-          // Concurrently created or existing in index: gracefully reuse
-          const matched = await MemberField.findOne({ fieldKey: finalKey });
-          if (matched) {
-            mapping.fieldKey = matched.fieldKey;
-            mapping.isExisting = true;
-          } else {
-            throw createErr;
-          }
+      dbFieldByKey.set(createdField.fieldKey, createdField);
+      dbFieldByLabel.set(createdField.fieldLabel.trim().toLowerCase(), createdField);
+      dbFieldByNorm.set(normalizeString(createdField.fieldLabel), createdField);
+      dbFieldByNorm.set(normalizeString(createdField.fieldKey), createdField);
+
+      newFieldsCreated.push({
+        fieldKey: createdField.fieldKey,
+        fieldLabel: createdField.fieldLabel,
+        fieldType: createdField.fieldType
+      });
+    } catch (createErr) {
+      if (createErr.code === 11000) {
+        // Concurrently created or existing in index: gracefully reuse
+        const matched = await MemberField.findOne({ fieldKey: finalKey });
+        if (matched) {
+          mapping.fieldKey = matched.fieldKey;
+          mapping.isExisting = true;
         } else {
           throw createErr;
         }
+      } else {
+        throw createErr;
       }
     }
   }

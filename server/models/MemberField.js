@@ -183,149 +183,166 @@ memberFieldSchema.index({ displayOrder: 1, createdAt: 1 });
 memberFieldSchema.index({ enabled: 1, isArchived: 1 });
 
 /**
- * Seeds and initializes default core system fields if not already populated.
+ * Seeds and initializes default core system fields only if explicitly requested.
+ * By default, in clean production launches, no unrequested default fields are injected
+ * because the uploaded CSV file is the primary source of truth for creating member fields.
  */
-memberFieldSchema.statics.initializeDefaultFields = async function () {
-  const defaultFields = [
-    {
-      fieldKey: 'name',
-      fieldLabel: 'Full Name',
-      fieldType: 'text',
-      required: true,
-      enabled: true,
-      isSystemField: true,
-      isSensitive: false,
-      showOnPublicProfile: true,
-      showInCsv: true,
-      showInSearch: true,
-      displayOrder: 10
-    },
-    {
-      fieldKey: 'emiratesId',
-      fieldLabel: 'Emirates ID',
-      fieldType: 'text',
-      required: false,
-      enabled: true,
-      isSystemField: true,
-      isSensitive: true,
-      showOnPublicProfile: true,
-      showInCsv: true,
-      showInSearch: true,
-      displayOrder: 20
-    },
-    {
-      fieldKey: 'mobileNo',
-      fieldLabel: 'Mobile No (UAE)',
-      fieldType: 'phone',
-      required: false,
-      enabled: true,
-      isSystemField: true,
-      isSensitive: false,
-      showOnPublicProfile: true,
-      showInCsv: true,
-      showInSearch: true,
-      displayOrder: 30
-    },
-    {
-      fieldKey: 'transportCompany',
-      fieldLabel: 'Transport Company',
-      fieldType: 'text',
-      required: false,
-      enabled: true,
-      isSystemField: true,
-      isSensitive: false,
-      showOnPublicProfile: true,
-      showInCsv: true,
-      showInSearch: true,
-      displayOrder: 40
-    },
-    {
-      fieldKey: 'emergencyContact',
-      fieldLabel: 'Emergency Contact',
-      fieldType: 'phone',
-      required: false,
-      enabled: true,
-      isSystemField: true,
-      isSensitive: false,
-      showOnPublicProfile: true,
-      showInCsv: true,
-      showInSearch: false,
-      displayOrder: 50
-    },
-    {
-      fieldKey: 'bloodGroup',
-      fieldLabel: 'Blood Group',
-      fieldType: 'select',
-      required: false,
-      enabled: true,
-      isSystemField: true,
-      isSensitive: false,
-      showOnPublicProfile: true,
-      showInCsv: true,
-      showInSearch: true,
-      options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
-      displayOrder: 60
-    },
-    {
-      fieldKey: 'livingArea',
-      fieldLabel: 'Living Area (UAE)',
-      fieldType: 'text',
-      required: false,
-      enabled: true,
-      isSystemField: true,
-      isSensitive: false,
-      showOnPublicProfile: true,
-      showInCsv: true,
-      showInSearch: true,
-      displayOrder: 70
-    },
-    {
-      fieldKey: 'uae',
-      fieldLabel: 'UAE Contact / City',
-      fieldType: 'text',
-      required: false,
-      enabled: true,
-      isSystemField: true,
-      isSensitive: false,
-      showOnPublicProfile: true,
-      showInCsv: true,
-      showInSearch: false,
-      displayOrder: 80
-    },
-    {
-      fieldKey: 'india',
-      fieldLabel: 'India Hometown / District',
-      fieldType: 'text',
-      required: false,
-      enabled: true,
-      isSystemField: true,
-      isSensitive: false,
-      showOnPublicProfile: true,
-      showInCsv: true,
-      showInSearch: false,
-      displayOrder: 90
-    },
-    {
-      fieldKey: 'addressInIndia',
-      fieldLabel: 'Address in India',
-      fieldType: 'textarea',
-      required: false,
-      enabled: true,
-      isSystemField: true,
-      isSensitive: true,
-      showOnPublicProfile: true,
-      showInCsv: true,
-      showInSearch: false,
-      displayOrder: 100
-    }
-  ];
+memberFieldSchema.statics.initializeDefaultFields = async function (options = {}) {
+  if (options && options.seedDefaults === true) {
+    const defaultFields = [
+      {
+        fieldKey: 'memberId',
+        fieldLabel: 'KTPD NO',
+        fieldType: 'alphanumeric',
+        required: true,
+        enabled: true,
+        isSystemField: true,
+        isSensitive: false,
+        showOnPublicProfile: true,
+        showInCsv: true,
+        showInSearch: true,
+        displayOrder: 5
+      },
+      {
+        fieldKey: 'name',
+        fieldLabel: 'Full Name',
+        fieldType: 'text',
+        required: true,
+        enabled: true,
+        isSystemField: true,
+        isSensitive: false,
+        showOnPublicProfile: true,
+        showInCsv: true,
+        showInSearch: true,
+        displayOrder: 10
+      },
+      {
+        fieldKey: 'emiratesId',
+        fieldLabel: 'Emirates ID',
+        fieldType: 'alphanumeric',
+        required: false,
+        enabled: true,
+        isSystemField: true,
+        isSensitive: true,
+        showOnPublicProfile: true,
+        showInCsv: true,
+        showInSearch: true,
+        displayOrder: 20
+      },
+      {
+        fieldKey: 'mobileNo',
+        fieldLabel: 'Mobile No (UAE)',
+        fieldType: 'phone',
+        required: false,
+        enabled: true,
+        isSystemField: true,
+        isSensitive: false,
+        showOnPublicProfile: true,
+        showInCsv: true,
+        showInSearch: true,
+        displayOrder: 30
+      },
+      {
+        fieldKey: 'transportCompany',
+        fieldLabel: 'Transport Company',
+        fieldType: 'text',
+        required: false,
+        enabled: true,
+        isSystemField: true,
+        isSensitive: false,
+        showOnPublicProfile: true,
+        showInCsv: true,
+        showInSearch: true,
+        displayOrder: 40
+      },
+      {
+        fieldKey: 'emergencyContact',
+        fieldLabel: 'Emergency Contact',
+        fieldType: 'phone',
+        required: false,
+        enabled: true,
+        isSystemField: true,
+        isSensitive: false,
+        showOnPublicProfile: true,
+        showInCsv: true,
+        showInSearch: false,
+        displayOrder: 50
+      },
+      {
+        fieldKey: 'bloodGroup',
+        fieldLabel: 'Blood Group',
+        fieldType: 'dropdown',
+        required: false,
+        enabled: true,
+        isSystemField: true,
+        isSensitive: false,
+        showOnPublicProfile: true,
+        showInCsv: true,
+        showInSearch: true,
+        options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
+        displayOrder: 60
+      },
+      {
+        fieldKey: 'livingArea',
+        fieldLabel: 'Living Area (UAE)',
+        fieldType: 'text',
+        required: false,
+        enabled: true,
+        isSystemField: true,
+        isSensitive: false,
+        showOnPublicProfile: true,
+        showInCsv: true,
+        showInSearch: true,
+        displayOrder: 70
+      },
+      {
+        fieldKey: 'uae',
+        fieldLabel: 'UAE Contact / City',
+        fieldType: 'text',
+        required: false,
+        enabled: true,
+        isSystemField: true,
+        isSensitive: false,
+        showOnPublicProfile: true,
+        showInCsv: true,
+        showInSearch: false,
+        displayOrder: 80
+      },
+      {
+        fieldKey: 'india',
+        fieldLabel: 'India Hometown / District',
+        fieldType: 'text',
+        required: false,
+        enabled: true,
+        isSystemField: true,
+        isSensitive: false,
+        showOnPublicProfile: true,
+        showInCsv: true,
+        showInSearch: false,
+        displayOrder: 90
+      },
+      {
+        fieldKey: 'addressInIndia',
+        fieldLabel: 'Address in India',
+        fieldType: 'textarea',
+        required: false,
+        enabled: true,
+        isSystemField: true,
+        isSensitive: true,
+        showOnPublicProfile: true,
+        showInCsv: true,
+        showInSearch: false,
+        displayOrder: 100
+      }
+    ];
 
-  for (const field of defaultFields) {
-    await this.findOneAndUpdate(
-      { fieldKey: field.fieldKey },
-      { $setOnInsert: field },
-      { upsert: true, new: true }
-    );
+    for (const field of defaultFields) {
+      await this.findOneAndUpdate(
+        { fieldKey: field.fieldKey },
+        { $setOnInsert: field },
+        { upsert: true, new: true }
+      );
+    }
   }
 
   // Ensure optional member information fields do not block member creation

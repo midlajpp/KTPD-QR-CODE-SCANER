@@ -658,6 +658,15 @@ const ImportPage = () => {
                                 </optgroup>
                               )}
                             </select>
+                            {col.isExisting ? (
+                              <span className="badge badge-success" style={{ fontSize: '0.7rem', width: 'fit-content' }}>
+                                <Check size={11} /> Reusing Existing Field
+                              </span>
+                            ) : (
+                              <span className="badge badge-purple" style={{ fontSize: '0.7rem', width: 'fit-content' }}>
+                                <Sparkles size={11} /> New Field to Create
+                              </span>
+                            )}
                           </div>
                         ) : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -708,7 +717,7 @@ const ImportPage = () => {
                           className="form-select"
                           value={col.fieldType}
                           onChange={(e) => handleTypeChange(idx, e.target.value)}
-                          disabled={!col.included || col.isSystemField}
+                          disabled={!col.included}
                           style={{ minWidth: 160, padding: '0.35rem 0.65rem', fontSize: '0.875rem' }}
                         >
                           {FIELD_TYPE_OPTIONS.map((opt) => (

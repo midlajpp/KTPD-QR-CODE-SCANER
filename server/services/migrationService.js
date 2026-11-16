@@ -8,24 +8,26 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Initializes and preserves configured dynamic field definitions in the database.
- * Strictly does NOT seed or restore any sample or demo members.
+ * Dynamic field definitions configuration.
+ * Respects the core requirement: The uploaded CSV file is the primary source of truth
+ * for creating member fields. Strictly avoids seeding unrequested default or backup fields.
  */
-export const initializeFieldDefinitions = async () => {
+export const initializeFieldDefinitions = async (options = {}) => {
   try {
-    const fieldsFile = path.resolve(__dirname, '../backups/latest_fields.json');
-
-    if (fs.existsSync(fieldsFile)) {
-      const fieldsData = JSON.parse(fs.readFileSync(fieldsFile, 'utf-8'));
-      for (const field of fieldsData) {
-        const { _id, createdAt, updatedAt, __v, ...fieldDoc } = field;
-        await MemberField.findOneAndUpdate(
-          { fieldKey: field.fieldKey },
-          { $setOnInsert: fieldDoc },
-          { upsert: true, new: true, timestamps: false }
-        );
+    if (options && options.restoreBackup === true) {
+      const fieldsFile = path.resolve(__dirname, '../backups/latest_fields.json');
+      if (fs.existsSync(fieldsFile)) {
+        const fieldsData = JSON.parse(fs.readFileSync(fieldsFile, 'utf-8'));
+        for (const field of fieldsData) {
+          const { _id, createdAt, updatedAt, __v, ...fieldDoc } = field;
+          await MemberField.findOneAndUpdate(
+            { fieldKey: field.fieldKey },
+            { $setOnInsert: fieldDoc },
+            { upsert: true, new: true, timestamps: false }
+          );
+        }
+        console.log(`[Configuration] Verified ${fieldsData.length} custom and core field definition(s).`);
       }
-      console.log(`[Configuration] Verified ${fieldsData.length} custom and core field definition(s).`);
     }
   } catch (err) {
     console.warn('[Configuration Warning] Could not initialize field definitions:', err.message);

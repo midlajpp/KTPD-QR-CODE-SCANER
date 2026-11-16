@@ -22,7 +22,7 @@ beforeAll(async () => {
   const uri = mongoServer.getUri();
   await mongoose.connect(uri);
 
-  await MemberField.initializeDefaultFields();
+  await MemberField.initializeDefaultFields({ seedDefaults: true });
 
   // Explicitly simulate the exact user configuration:
   // Existing custom field with Label: "Transport Company" and fieldKey: "transport_company_name"
