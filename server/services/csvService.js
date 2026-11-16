@@ -324,35 +324,35 @@ export const exportMembersToCsv = async (members, options = {}) => {
 
     row['Member ID'] = displayId;
 
-    // 2. Standard core fields if enabled
-    if (activeKeySet.has('name')) {
+    // 2. Standard core fields if enabled or present on member
+    if (activeKeySet.has('name') || m.name) {
       row[fieldKeyToLabel['name'] || 'Full Name'] = m.name || '';
     }
-    if (activeKeySet.has('emiratesId')) {
+    if (activeKeySet.has('emiratesId') || m.emiratesId) {
       row[fieldKeyToLabel['emiratesId'] || 'Emirates ID'] = m.emiratesId || '';
     }
-    if (activeKeySet.has('mobileNo')) {
+    if (activeKeySet.has('mobileNo') || m.mobileNo) {
       row[fieldKeyToLabel['mobileNo'] || 'Mobile No (UAE)'] = m.mobileNo || '';
     }
-    if (activeKeySet.has('transportCompany')) {
+    if (activeKeySet.has('transportCompany') || m.transportCompany) {
       row[fieldKeyToLabel['transportCompany'] || 'Transport Company'] = m.transportCompany || '';
     }
-    if (activeKeySet.has('emergencyContact')) {
+    if (activeKeySet.has('emergencyContact') || m.emergencyContact) {
       row[fieldKeyToLabel['emergencyContact'] || 'Emergency Contact'] = m.emergencyContact || '';
     }
-    if (activeKeySet.has('uae')) {
+    if (activeKeySet.has('uae') || m.uae) {
       row[fieldKeyToLabel['uae'] || 'UAE Contact / City'] = m.uae || '';
     }
-    if (activeKeySet.has('india')) {
+    if (activeKeySet.has('india') || m.india) {
       row[fieldKeyToLabel['india'] || 'India Hometown / District'] = m.india || '';
     }
-    if (activeKeySet.has('addressInIndia')) {
+    if (activeKeySet.has('addressInIndia') || m.addressInIndia) {
       row[fieldKeyToLabel['addressInIndia'] || 'Address in India'] = m.addressInIndia || '';
     }
-    if (activeKeySet.has('livingArea')) {
+    if (activeKeySet.has('livingArea') || m.livingArea) {
       row[fieldKeyToLabel['livingArea'] || 'Living Area (UAE)'] = m.livingArea || '';
     }
-    if (activeKeySet.has('bloodGroup')) {
+    if (activeKeySet.has('bloodGroup') || m.bloodGroup) {
       row[fieldKeyToLabel['bloodGroup'] || 'Blood Group'] = m.bloodGroup || '';
     }
 

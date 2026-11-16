@@ -1,5 +1,23 @@
-import ProfileDesign, { DEFAULT_DESIGN } from '../models/ProfileDesign.js';
+import ProfileDesign, { DEFAULT_DESIGN, DEFAULT_TEXT_ELEMENTS } from '../models/ProfileDesign.js';
 import AuditLog from '../models/AuditLog.js';
+
+const mergeTextElements = (source) => {
+  const merged = {};
+  for (const [key, defaultVal] of Object.entries(DEFAULT_TEXT_ELEMENTS)) {
+    merged[key] = {
+      ...defaultVal,
+      ...(source?.textElements?.[key] || {})
+    };
+  }
+  if (source?.textElements) {
+    for (const [k, v] of Object.entries(source.textElements)) {
+      if (!merged[k]) {
+        merged[k] = v;
+      }
+    }
+  }
+  return merged;
+};
 
 /**
  * @route   GET /api/design
@@ -55,7 +73,9 @@ export const saveDraftSettings = async (req, res, next) => {
       statusBadge: { ...DEFAULT_DESIGN.statusBadge, ...(draft.statusBadge || {}) },
       memberPhoto: { ...DEFAULT_DESIGN.memberPhoto, ...(draft.memberPhoto || {}) },
       fieldDisplay: { ...DEFAULT_DESIGN.fieldDisplay, ...(draft.fieldDisplay || {}) },
-      footer: { ...DEFAULT_DESIGN.footer, ...(draft.footer || {}) }
+      footer: { ...DEFAULT_DESIGN.footer, ...(draft.footer || {}) },
+      textElements: mergeTextElements(draft),
+      customTexts: Array.isArray(draft.customTexts) ? draft.customTexts : []
     };
     doc.updatedBy = req.admin?.username || 'admin';
     doc.markModified('draft');
@@ -106,7 +126,9 @@ export const publishDesignSettings = async (req, res, next) => {
       statusBadge: { ...DEFAULT_DESIGN.statusBadge, ...(settingsToPublish.statusBadge || {}) },
       memberPhoto: { ...DEFAULT_DESIGN.memberPhoto, ...(settingsToPublish.memberPhoto || {}) },
       fieldDisplay: { ...DEFAULT_DESIGN.fieldDisplay, ...(settingsToPublish.fieldDisplay || {}) },
-      footer: { ...DEFAULT_DESIGN.footer, ...(settingsToPublish.footer || {}) }
+      footer: { ...DEFAULT_DESIGN.footer, ...(settingsToPublish.footer || {}) },
+      textElements: mergeTextElements(settingsToPublish),
+      customTexts: Array.isArray(settingsToPublish.customTexts) ? settingsToPublish.customTexts : []
     };
 
     doc.published = merged;

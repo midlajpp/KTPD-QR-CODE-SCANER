@@ -1,5 +1,179 @@
 import mongoose from 'mongoose';
 
+export const DEFAULT_TEXT_ELEMENTS = {
+  orgName: {
+    id: 'orgName',
+    name: 'Organization Name',
+    visible: true,
+    text: 'KTPD Drivers Association',
+    fontSize: 24,
+    minSize: 12,
+    maxSize: 48,
+    fontWeight: '700',
+    color: '',
+    textAlign: 'center',
+    letterSpacing: '0px',
+    lineHeight: 1.25,
+    fontFamily: '',
+    placement: 'header'
+  },
+  pageTitle: {
+    id: 'pageTitle',
+    name: 'Profile Page Title',
+    visible: true,
+    text: 'Official Digital Verification',
+    fontSize: 28,
+    minSize: 14,
+    maxSize: 56,
+    fontWeight: '600',
+    color: '',
+    textAlign: 'center',
+    letterSpacing: '0px',
+    lineHeight: 1.25,
+    fontFamily: '',
+    placement: 'header'
+  },
+  subtitle: {
+    id: 'subtitle',
+    name: 'Subtitle / Tagline',
+    visible: true,
+    text: 'UAE Chapter • Kerala Transport Drivers Association',
+    fontSize: 16,
+    minSize: 10,
+    maxSize: 32,
+    fontWeight: '500',
+    color: '',
+    textAlign: 'center',
+    letterSpacing: '0.5px',
+    lineHeight: 1.35,
+    fontFamily: '',
+    placement: 'header'
+  },
+  memberName: {
+    id: 'memberName',
+    name: 'Member Name',
+    visible: true,
+    fontSize: 24,
+    minSize: 14,
+    maxSize: 48,
+    fontWeight: '700',
+    color: '',
+    textAlign: 'center',
+    letterSpacing: '0px',
+    lineHeight: 1.25,
+    fontFamily: '',
+    placement: 'hero'
+  },
+  memberId: {
+    id: 'memberId',
+    name: 'KTPD Number (ID Badge)',
+    visible: true,
+    fontSize: 15,
+    minSize: 11,
+    maxSize: 32,
+    fontWeight: '700',
+    color: '',
+    textAlign: 'center',
+    letterSpacing: '0.5px',
+    lineHeight: 1.2,
+    fontFamily: '',
+    placement: 'hero'
+  },
+  statusText: {
+    id: 'statusText',
+    name: 'Status Banner / Pill',
+    visible: true,
+    fontSize: 13,
+    minSize: 10,
+    maxSize: 24,
+    fontWeight: '600',
+    color: '',
+    textAlign: 'center',
+    letterSpacing: '0px',
+    lineHeight: 1.2,
+    fontFamily: '',
+    placement: 'status'
+  },
+  sectionHeading: {
+    id: 'sectionHeading',
+    name: 'Section Heading',
+    visible: true,
+    text: 'Member Information',
+    fontSize: 16,
+    minSize: 12,
+    maxSize: 32,
+    fontWeight: '600',
+    color: '',
+    textAlign: 'left',
+    letterSpacing: '0px',
+    lineHeight: 1.3,
+    fontFamily: '',
+    placement: 'above_fields'
+  },
+  fieldLabels: {
+    id: 'fieldLabels',
+    name: 'Field Labels',
+    visible: true,
+    fontSize: 12,
+    minSize: 10,
+    maxSize: 22,
+    fontWeight: '600',
+    color: '',
+    textAlign: 'left',
+    letterSpacing: '0.5px',
+    lineHeight: 1.2,
+    fontFamily: '',
+    placement: 'fields'
+  },
+  fieldValues: {
+    id: 'fieldValues',
+    name: 'Field Values',
+    visible: true,
+    fontSize: 14,
+    minSize: 11,
+    maxSize: 26,
+    fontWeight: '500',
+    color: '',
+    textAlign: 'left',
+    letterSpacing: '0px',
+    lineHeight: 1.35,
+    fontFamily: '',
+    placement: 'fields'
+  },
+  footerText: {
+    id: 'footerText',
+    name: 'Footer Notice',
+    visible: true,
+    text: 'This digital card is cryptographically verified against the KTPD Database.',
+    fontSize: 12,
+    minSize: 9,
+    maxSize: 22,
+    fontWeight: '400',
+    color: '',
+    textAlign: 'center',
+    letterSpacing: '0px',
+    lineHeight: 1.4,
+    fontFamily: '',
+    placement: 'footer'
+  },
+  securityBadgeText: {
+    id: 'securityBadgeText',
+    name: 'Security Badge Text',
+    visible: true,
+    text: 'Permanent Dynamic QR Authentication Active',
+    fontSize: 11,
+    minSize: 9,
+    maxSize: 20,
+    fontWeight: '600',
+    color: '',
+    textAlign: 'center',
+    letterSpacing: '0.25px',
+    lineHeight: 1.2,
+    fontFamily: '',
+    placement: 'footer'
+  }
+};
+
 export const DEFAULT_DESIGN = {
   template: 'modern', // 'modern' | 'minimal' | 'corporate' | 'gradient' | 'compact'
   branding: {
@@ -79,13 +253,16 @@ export const DEFAULT_DESIGN = {
     layout: 'grid', // 'grid' (2 columns) | 'list' (1 column)
     labelStyle: 'uppercase', // 'uppercase' | 'capitalize' | 'muted'
     showIcons: true,
+    hiddenFields: [], // Array of field keys to hide from public profile (e.g. ['transportCompany'])
   },
   footer: {
     text: 'This digital card is cryptographically verified against the KTPD Database.',
     showSecurityBadge: true,
     securityBadgeText: 'Permanent Dynamic QR Authentication Active',
     showLastUpdated: true,
-  }
+  },
+  textElements: DEFAULT_TEXT_ELEMENTS,
+  customTexts: [] // Array of { id, title, content, linkedFieldKey, placement, visible, fontSize, minSize, maxSize, fontWeight, color, textAlign, lineHeight, letterSpacing, fontFamily }
 };
 
 const profileDesignSchema = new mongoose.Schema(
@@ -145,19 +322,38 @@ profileDesignSchema.statics.getSingleton = async function () {
  */
 profileDesignSchema.statics.getEffectivePublished = async function () {
   const doc = await this.getSingleton();
+  const pub = doc.published || {};
+
+  const mergedTextElements = {};
+  for (const [key, defaultVal] of Object.entries(DEFAULT_TEXT_ELEMENTS)) {
+    mergedTextElements[key] = {
+      ...defaultVal,
+      ...(pub.textElements?.[key] || {})
+    };
+  }
+  if (pub.textElements) {
+    for (const [k, v] of Object.entries(pub.textElements)) {
+      if (!mergedTextElements[k]) {
+        mergedTextElements[k] = v;
+      }
+    }
+  }
+
   return {
     ...DEFAULT_DESIGN,
-    ...(doc.published || {}),
-    branding: { ...DEFAULT_DESIGN.branding, ...(doc.published?.branding || {}) },
-    colors: { ...DEFAULT_DESIGN.colors, ...(doc.published?.colors || {}) },
-    background: { ...DEFAULT_DESIGN.background, ...(doc.published?.background || {}) },
-    typography: { ...DEFAULT_DESIGN.typography, ...(doc.published?.typography || {}) },
-    cardStyle: { ...DEFAULT_DESIGN.cardStyle, ...(doc.published?.cardStyle || {}) },
-    idBadge: { ...DEFAULT_DESIGN.idBadge, ...(doc.published?.idBadge || {}) },
-    statusBadge: { ...DEFAULT_DESIGN.statusBadge, ...(doc.published?.statusBadge || {}) },
-    memberPhoto: { ...DEFAULT_DESIGN.memberPhoto, ...(doc.published?.memberPhoto || {}) },
-    fieldDisplay: { ...DEFAULT_DESIGN.fieldDisplay, ...(doc.published?.fieldDisplay || {}) },
-    footer: { ...DEFAULT_DESIGN.footer, ...(doc.published?.footer || {}) }
+    ...pub,
+    branding: { ...DEFAULT_DESIGN.branding, ...(pub.branding || {}) },
+    colors: { ...DEFAULT_DESIGN.colors, ...(pub.colors || {}) },
+    background: { ...DEFAULT_DESIGN.background, ...(pub.background || {}) },
+    typography: { ...DEFAULT_DESIGN.typography, ...(pub.typography || {}) },
+    cardStyle: { ...DEFAULT_DESIGN.cardStyle, ...(pub.cardStyle || {}) },
+    idBadge: { ...DEFAULT_DESIGN.idBadge, ...(pub.idBadge || {}) },
+    statusBadge: { ...DEFAULT_DESIGN.statusBadge, ...(pub.statusBadge || {}) },
+    memberPhoto: { ...DEFAULT_DESIGN.memberPhoto, ...(pub.memberPhoto || {}) },
+    fieldDisplay: { ...DEFAULT_DESIGN.fieldDisplay, ...(pub.fieldDisplay || {}) },
+    footer: { ...DEFAULT_DESIGN.footer, ...(pub.footer || {}) },
+    textElements: mergedTextElements,
+    customTexts: Array.isArray(pub.customTexts) ? pub.customTexts : []
   };
 };
 

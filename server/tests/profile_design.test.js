@@ -275,5 +275,205 @@ describe('QR PUBLIC PROFILE DESIGN CUSTOMIZER TESTS', () => {
     expect(livePublicRes.body.design.branding.headerTextAlign).toBe('left');
     expect(livePublicRes.body.design.branding.orgNameLetterSpacing).toBe('1px');
   });
+
+  // 11. Full textElements customization and individual show/hide visibility
+  test('11. textElements customization (memberName, memberId, sectionHeading, fieldLabels, etc.) saves, publishes, and applies to public QR scans', async () => {
+    const textCustomizationDraft = {
+      ...DEFAULT_DESIGN,
+      textElements: {
+        ...DEFAULT_DESIGN.textElements,
+        orgName: {
+          ...DEFAULT_DESIGN.textElements.orgName,
+          text: 'KTPD Drivers Union UAE',
+          fontSize: 30,
+          fontWeight: '700',
+          color: '#10B981',
+          textAlign: 'center'
+        },
+        memberName: {
+          ...DEFAULT_DESIGN.textElements.memberName,
+          fontSize: 28,
+          fontWeight: '700',
+          color: '#1E293B',
+          textAlign: 'center'
+        },
+        memberId: {
+          ...DEFAULT_DESIGN.textElements.memberId,
+          fontSize: 18,
+          fontWeight: '700',
+          color: '#3B82F6',
+          textAlign: 'center'
+        },
+        sectionHeading: {
+          ...DEFAULT_DESIGN.textElements.sectionHeading,
+          text: 'Official Driver Credentials',
+          fontSize: 18,
+          fontWeight: '600',
+          color: '#1D4ED8',
+          textAlign: 'left'
+        },
+        fieldLabels: {
+          ...DEFAULT_DESIGN.textElements.fieldLabels,
+          fontSize: 13,
+          fontWeight: '600',
+          color: '#475569'
+        },
+        fieldValues: {
+          ...DEFAULT_DESIGN.textElements.fieldValues,
+          fontSize: 15,
+          fontWeight: '500',
+          color: '#0F172A'
+        },
+        footerText: {
+          ...DEFAULT_DESIGN.textElements.footerText,
+          text: 'Cryptographically authenticated by KTPD Authority.',
+          fontSize: 13,
+          color: '#64748B'
+        }
+      },
+      fieldDisplay: {
+        ...DEFAULT_DESIGN.fieldDisplay,
+        hiddenFields: ['emergencyContact'] // Individually hidden field
+      }
+    };
+
+    // Save Draft
+    const draftRes = await request(app)
+      .put('/api/design/draft')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ draft: textCustomizationDraft });
+
+    expect(draftRes.status).toBe(200);
+    expect(draftRes.body.data.draft.textElements.orgName.text).toBe('KTPD Drivers Union UAE');
+    expect(draftRes.body.data.draft.textElements.orgName.fontSize).toBe(30);
+    expect(draftRes.body.data.draft.textElements.memberName.fontSize).toBe(28);
+    expect(draftRes.body.data.draft.textElements.sectionHeading.text).toBe('Official Driver Credentials');
+    expect(draftRes.body.data.draft.fieldDisplay.hiddenFields).toContain('emergencyContact');
+
+    // Publish
+    const pubRes = await request(app)
+      .post('/api/design/publish')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send();
+
+    expect(pubRes.status).toBe(200);
+    expect(pubRes.body.data.published.textElements.orgName.text).toBe('KTPD Drivers Union UAE');
+    expect(pubRes.body.data.published.textElements.sectionHeading.text).toBe('Official Driver Credentials');
+
+    // Verify Public Scan delivers the published text elements
+    const liveRes = await request(app).get(`/api/public/members/${sampleMemberQrToken}`);
+    expect(liveRes.status).toBe(200);
+    expect(liveRes.body.design.textElements.orgName.text).toBe('KTPD Drivers Union UAE');
+    expect(liveRes.body.design.textElements.orgName.fontSize).toBe(30);
+    expect(liveRes.body.design.textElements.memberName.fontSize).toBe(28);
+    expect(liveRes.body.design.textElements.sectionHeading.text).toBe('Official Driver Credentials');
+    expect(liveRes.body.design.fieldDisplay.hiddenFields).toContain('emergencyContact');
+  });
+
+  // 12. Custom text elements (customTexts) and linked member fields
+  test('12. Custom text elements (customTexts) save, publish, and render on public QR scan without modifying Member records', async () => {
+    const customTextItem = {
+      id: 'ct_test_123',
+      title: 'Disciplinary Advisory',
+      content: 'Authorized to operate heavy commercial vehicles in all UAE emirates.',
+      linkedFieldKey: '',
+      placement: 'above_fields',
+      visible: true,
+      fontSize: 14,
+      minSize: 10,
+      maxSize: 48,
+      fontWeight: '500',
+      color: '#1E293B',
+      textAlign: 'left',
+      lineHeight: 1.35,
+      letterSpacing: '0px'
+    };
+
+    const linkedFieldItem = {
+      id: 'ct_field_transport',
+      title: 'Transport Company Designation',
+      content: '',
+      linkedFieldKey: 'transportCompany',
+      placement: 'header',
+      visible: true,
+      fontSize: 15,
+      minSize: 10,
+      maxSize: 48,
+      fontWeight: '600',
+      color: '#0284C7',
+      textAlign: 'center',
+      lineHeight: 1.25,
+      letterSpacing: '0.5px'
+    };
+
+    // Save Draft with custom texts
+    const draftRes = await request(app)
+      .put('/api/design/draft')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        draft: {
+          ...DEFAULT_DESIGN,
+          customTexts: [customTextItem, linkedFieldItem]
+        }
+      });
+
+    expect(draftRes.status).toBe(200);
+    expect(draftRes.body.data.draft.customTexts).toHaveLength(2);
+    expect(draftRes.body.data.draft.customTexts[0].title).toBe('Disciplinary Advisory');
+    expect(draftRes.body.data.draft.customTexts[1].linkedFieldKey).toBe('transportCompany');
+
+    // Publish
+    const pubRes = await request(app)
+      .post('/api/design/publish')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send();
+
+    expect(pubRes.status).toBe(200);
+    expect(pubRes.body.data.published.customTexts).toHaveLength(2);
+
+    // Verify Public QR scan serves custom texts
+    const publicRes = await request(app).get(`/api/public/members/${sampleMemberQrToken}`);
+    expect(publicRes.status).toBe(200);
+    expect(publicRes.body.design.customTexts).toHaveLength(2);
+    expect(publicRes.body.design.customTexts[0].title).toBe('Disciplinary Advisory');
+    expect(publicRes.body.design.customTexts[0].content).toBe('Authorized to operate heavy commercial vehicles in all UAE emirates.');
+    expect(publicRes.body.design.customTexts[1].linkedFieldKey).toBe('transportCompany');
+  });
+
+  // 13. Safety Rule: Removing text from design does not alter member records in MongoDB
+  test('13. Safety Rule: Hiding or deleting text elements never modifies or deletes Member records in MongoDB', async () => {
+    // Member record before
+    const memberBefore = await Member.findOne({ qrToken: sampleMemberQrToken });
+    expect(memberBefore).toBeDefined();
+    expect(memberBefore.name).toBe('Rashid Khan');
+    expect(memberBefore.transportCompany).toBe('Gulf Express Logistics');
+
+    // Hide everything in design draft & publish
+    const emptyDesignDraft = {
+      ...DEFAULT_DESIGN,
+      textElements: {
+        ...DEFAULT_DESIGN.textElements,
+        orgName: { ...DEFAULT_DESIGN.textElements.orgName, visible: false },
+        memberName: { ...DEFAULT_DESIGN.textElements.memberName, visible: false },
+        memberId: { ...DEFAULT_DESIGN.textElements.memberId, visible: false }
+      },
+      customTexts: [] // Empty custom texts
+    };
+
+    const pubRes = await request(app)
+      .post('/api/design/publish')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ settings: emptyDesignDraft });
+
+    expect(pubRes.status).toBe(200);
+
+    // Member record in MongoDB remains completely intact and unaltered
+    const memberAfter = await Member.findOne({ qrToken: sampleMemberQrToken });
+    expect(memberAfter).toBeDefined();
+    expect(memberAfter.name).toBe('Rashid Khan');
+    expect(memberAfter.transportCompany).toBe('Gulf Express Logistics');
+    expect(memberAfter.memberId).toBe('D343');
+    expect(memberAfter.qrToken).toBe(sampleMemberQrToken); // Permanent QR token unchanged
+  });
 });
 

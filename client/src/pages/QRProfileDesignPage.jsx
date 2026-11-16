@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { designService } from '../services/designService';
+import { fieldService } from '../services/fieldService';
 import { getAssetUrl } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import ProfileCardView, { SAMPLE_MEMBER } from '../components/ProfileCardView';
@@ -28,11 +29,17 @@ import {
   FileText,
   ShieldCheck,
   Eye,
+  EyeOff,
   Minus,
   Plus,
   AlignLeft,
   AlignCenter,
-  AlignRight
+  AlignRight,
+  X,
+  FolderPlus,
+  ListFilter,
+  Tag,
+  Edit3
 } from 'lucide-react';
 
 const FONT_OPTIONS = ['Poppins', 'Inter', 'Nunito', 'Montserrat', 'Roboto'];
@@ -136,51 +143,188 @@ const TEMPLATES = [
   }
 ];
 
+/**
+ * Full-Featured Text Element Customizer Card
+ * Supports: Show/Hide, Rename, Text Editing, Size (+, -, slider, px input),
+ * Font Family, Font Weight, Text Color, Text Alignment, Line Height, Letter Spacing,
+ * Placement selector (for custom items), and Delete button.
+ */
 const TextElementCustomizerCard = ({
+  id,
   title,
+  onRename,
   textValue,
   onTextChange,
   placeholder,
+  isTextEditable = true,
+  visible = true,
+  onVisibleChange,
+  canRemove = false,
+  onRemove,
+  placement,
+  onPlacementChange,
   fontSize,
-  defaultSize,
-  minSize,
-  maxSize,
+  defaultSize = 16,
+  minSize = 10,
+  maxSize = 48,
   onFontSizeChange,
   fontWeight,
   onFontWeightChange,
+  color,
+  defaultColor = '#0F172A',
+  onColorChange,
+  textAlign = 'left',
+  onTextAlignChange,
   letterSpacing,
   onLetterSpacingChange,
   lineHeight,
-  onLineHeightChange
+  onLineHeightChange,
+  fontFamily,
+  onFontFamilyChange,
+  isSelected = false,
+  linkedFieldLabel
 }) => {
   const currentSize = Number(fontSize !== undefined && fontSize !== null ? fontSize : defaultSize);
   const currentWeight = String(fontWeight || '600');
   const currentSpacing = letterSpacing || '0px';
   const currentLineHeight = Number(lineHeight || 1.25);
+  const currentColor = color || defaultColor;
+  const currentFamily = fontFamily || 'inherit';
+
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [tempTitle, setTempTitle] = useState(title || '');
 
   return (
-    <div className="text-element-card">
+    <div
+      id={`element-card-${id}`}
+      className={`text-element-card ${isSelected ? 'is-active-element' : ''}`}
+      style={{
+        opacity: visible ? 1 : 0.65,
+        transition: 'all 0.2s ease-in-out'
+      }}
+    >
+      {/* Element Header */}
       <div className="text-element-header">
-        <span className="text-element-title">
-          <Type size={15} color="var(--primary)" />
-          <span>{title}</span>
-        </span>
-        <span className="text-element-badge">{currentSize}px</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+          <Type size={16} color="var(--primary)" style={{ flexShrink: 0 }} />
+
+          {isEditingTitle && onRename ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flex: 1 }}>
+              <input
+                type="text"
+                className="form-input"
+                style={{ padding: '0.2rem 0.4rem', fontSize: '0.8125rem', height: 28 }}
+                value={tempTitle}
+                autoFocus
+                onChange={(e) => setTempTitle(e.target.value)}
+                onBlur={() => {
+                  setIsEditingTitle(false);
+                  if (tempTitle.trim()) onRename(tempTitle.trim());
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setIsEditingTitle(false);
+                    if (tempTitle.trim()) onRename(tempTitle.trim());
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '0.2rem 0.4rem', height: 28 }}
+                onClick={() => {
+                  setIsEditingTitle(false);
+                  if (tempTitle.trim()) onRename(tempTitle.trim());
+                }}
+              >
+                <Check size={13} />
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+              <span className="text-element-title" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                {title}
+              </span>
+              {onRename && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempTitle(title);
+                    setIsEditingTitle(true);
+                  }}
+                  title="Rename this element"
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2 }}
+                >
+                  <Edit3 size={12} />
+                </button>
+              )}
+            </div>
+          )}
+
+          {linkedFieldLabel && (
+            <span
+              className="element-placement-badge"
+              style={{ backgroundColor: '#E0E7FF', color: '#3730A3' }}
+              title={`Linked to member field: ${linkedFieldLabel}`}
+            >
+              <Tag size={10} />
+              <span>{linkedFieldLabel}</span>
+            </span>
+          )}
+
+          {placement && (
+            <span className="element-placement-badge">
+              {placement.replace('_', ' ')}
+            </span>
+          )}
+        </div>
+
+        <div className="text-element-card-header-actions">
+          {/* Show / Hide Toggle Switch */}
+          {onVisibleChange && (
+            <label className="element-toggle-switch" title={visible ? 'Hide this element from profile' : 'Show this element on profile'}>
+              <input
+                type="checkbox"
+                checked={visible}
+                onChange={(e) => onVisibleChange(e.target.checked)}
+              />
+              <span>{visible ? <Eye size={14} color="#16A34A" /> : <EyeOff size={14} color="#94A3B8" />}</span>
+            </label>
+          )}
+
+          <span className="text-element-badge">{currentSize}px</span>
+
+          {/* Remove / Delete Button for Custom Elements */}
+          {canRemove && onRemove && (
+            <button
+              type="button"
+              className="btn-remove-element"
+              onClick={onRemove}
+              title="Delete this custom text element"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Direct Text String Input */}
-      <input
-        type="text"
-        className="form-input"
-        value={textValue || ''}
-        placeholder={placeholder}
-        onChange={(e) => onTextChange(e.target.value)}
-        style={{ marginBottom: '0.875rem' }}
-      />
+      {/* Direct Text String Input (if editable) */}
+      {isTextEditable && onTextChange && (
+        <input
+          type="text"
+          className="form-input"
+          value={textValue || ''}
+          placeholder={placeholder}
+          onChange={(e) => onTextChange(e.target.value)}
+          style={{ marginBottom: '0.875rem' }}
+        />
+      )}
 
       {/* Font Size Row: Stepper (-) [Input px] (+) & Range Slider */}
       <div className="font-size-control-row">
-        <span className="font-size-label">Font Size</span>
+        <span className="font-size-label">
+          Font Size (Min {minSize}px &bull; Max {maxSize}px)
+        </span>
         <div className="font-size-stepper-control">
           <button
             type="button"
@@ -232,71 +376,134 @@ const TextElementCustomizerCard = ({
         className="custom-range-slider"
       />
 
-      {/* Additional Typography Controls */}
+      {/* Typography & Appearance Subcontrols */}
       <div className="element-typo-subcontrols">
+        {/* Font Family Selector */}
+        {onFontFamilyChange && (
+          <div className="subcontrol-item">
+            <span className="subcontrol-label">Font Family</span>
+            <select
+              className="form-input"
+              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', height: 32 }}
+              value={currentFamily}
+              onChange={(e) => onFontFamilyChange(e.target.value)}
+            >
+              <option value="inherit">Inherit Theme Font</option>
+              {FONT_OPTIONS.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Font Weight */}
-        <div className="subcontrol-item">
-          <span className="subcontrol-label">Font Weight</span>
-          <div className="pill-options-row" style={{ gap: '0.25rem' }}>
-            {[
-              { id: '400', label: 'Regular' },
-              { id: '500', label: 'Medium' },
-              { id: '600', label: 'Semibold' },
-              { id: '700', label: 'Bold' }
-            ].map((w) => (
-              <button
-                key={w.id}
-                type="button"
-                className={`pill-option-btn ${currentWeight === w.id ? 'selected' : ''}`}
-                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                onClick={() => onFontWeightChange(w.id)}
-              >
-                {w.label}
-              </button>
-            ))}
+        {onFontWeightChange && (
+          <div className="subcontrol-item">
+            <span className="subcontrol-label">Font Weight</span>
+            <div className="pill-options-row" style={{ gap: '0.2rem' }}>
+              {[
+                { id: '400', label: 'Regular' },
+                { id: '500', label: 'Medium' },
+                { id: '600', label: 'Semibold' },
+                { id: '700', label: 'Bold' }
+              ].map((w) => (
+                <button
+                  key={w.id}
+                  type="button"
+                  className={`pill-option-btn ${currentWeight === w.id ? 'selected' : ''}`}
+                  style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
+                  onClick={() => onFontWeightChange(w.id)}
+                >
+                  {w.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Letter Spacing */}
-        <div className="subcontrol-item">
-          <span className="subcontrol-label">Letter Spacing</span>
-          <div className="pill-options-row" style={{ gap: '0.25rem' }}>
-            {[
-              { id: '-0.5px', label: 'Tight' },
-              { id: '0px', label: 'Normal' },
-              { id: '0.5px', label: 'Wide' },
-              { id: '1px', label: 'Wider' },
-              { id: '2px', label: 'Spread' }
-            ].map((sp) => (
-              <button
-                key={sp.id}
-                type="button"
-                className={`pill-option-btn ${currentSpacing === sp.id ? 'selected' : ''}`}
-                style={{ padding: '0.25rem 0.45rem', fontSize: '0.75rem' }}
-                onClick={() => onLetterSpacingChange(sp.id)}
-              >
-                {sp.label}
-              </button>
-            ))}
+        {/* Text Color */}
+        {onColorChange && (
+          <div className="subcontrol-item">
+            <span className="subcontrol-label">Text Color</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <input
+                type="color"
+                className="color-swatch-picker"
+                style={{ width: 32, height: 32, borderRadius: 6 }}
+                value={currentColor.startsWith('#') ? currentColor : '#0F172A'}
+                onChange={(e) => onColorChange(e.target.value)}
+              />
+              <input
+                type="text"
+                className="form-input"
+                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', height: 32, width: 85 }}
+                value={color || ''}
+                placeholder={defaultColor}
+                onChange={(e) => onColorChange(e.target.value)}
+              />
+              {color && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ padding: '0.2rem 0.4rem', fontSize: '0.6875rem', height: 32 }}
+                  onClick={() => onColorChange('')}
+                  title="Reset to default theme color"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Line Height */}
-        <div className="subcontrol-item" style={{ gridColumn: '1 / -1' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="subcontrol-label">Line Height ({currentLineHeight})</span>
+        {/* Text Alignment */}
+        {onTextAlignChange && (
+          <div className="subcontrol-item">
+            <span className="subcontrol-label">Text Alignment</span>
             <div className="pill-options-row" style={{ gap: '0.25rem' }}>
               {[
-                { id: 1.1, label: 'Tight (1.1)' },
-                { id: 1.25, label: 'Normal (1.25)' },
-                { id: 1.4, label: 'Relaxed (1.4)' },
-                { id: 1.6, label: 'Loose (1.6)' }
+                { id: 'left', label: 'Left', icon: AlignLeft },
+                { id: 'center', label: 'Center', icon: AlignCenter },
+                { id: 'right', label: 'Right', icon: AlignRight }
+              ].map((align) => {
+                const IconComponent = align.icon;
+                const isSelected = (textAlign || 'left') === align.id;
+                return (
+                  <button
+                    key={align.id}
+                    type="button"
+                    className={`pill-option-btn ${isSelected ? 'selected' : ''}`}
+                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                    onClick={() => onTextAlignChange(align.id)}
+                    title={`${align.label} align`}
+                  >
+                    <IconComponent size={13} />
+                    <span>{align.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Line Height */}
+        {onLineHeightChange && (
+          <div className="subcontrol-item">
+            <span className="subcontrol-label">Line Height ({currentLineHeight})</span>
+            <div className="pill-options-row" style={{ gap: '0.2rem' }}>
+              {[
+                { id: 1.1, label: '1.1' },
+                { id: 1.25, label: '1.25' },
+                { id: 1.35, label: '1.35' },
+                { id: 1.5, label: '1.5' }
               ].map((lh) => (
                 <button
                   key={lh.id}
                   type="button"
                   className={`pill-option-btn ${currentLineHeight === lh.id ? 'selected' : ''}`}
-                  style={{ padding: '0.2rem 0.45rem', fontSize: '0.75rem' }}
+                  style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
                   onClick={() => onLineHeightChange(lh.id)}
                 >
                   {lh.label}
@@ -304,14 +511,65 @@ const TextElementCustomizerCard = ({
               ))}
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Letter Spacing */}
+        {onLetterSpacingChange && (
+          <div className="subcontrol-item">
+            <span className="subcontrol-label">Letter Spacing</span>
+            <div className="pill-options-row" style={{ gap: '0.2rem' }}>
+              {[
+                { id: '-0.5px', label: 'Tight' },
+                { id: '0px', label: 'Normal' },
+                { id: '0.5px', label: 'Wide' },
+                { id: '1px', label: 'Wider' }
+              ].map((sp) => (
+                <button
+                  key={sp.id}
+                  type="button"
+                  className={`pill-option-btn ${currentSpacing === sp.id ? 'selected' : ''}`}
+                  style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
+                  onClick={() => onLetterSpacingChange(sp.id)}
+                >
+                  {sp.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Placement Position (for custom elements) */}
+        {onPlacementChange && placement && (
+          <div className="subcontrol-item" style={{ gridColumn: '1 / -1' }}>
+            <span className="subcontrol-label">Profile Placement</span>
+            <div className="pill-options-row" style={{ gap: '0.25rem' }}>
+              {[
+                { id: 'header', label: 'Header' },
+                { id: 'above_fields', label: 'Above Fields' },
+                { id: 'below_fields', label: 'Below Fields' },
+                { id: 'footer', label: 'Footer' }
+              ].map((pl) => (
+                <button
+                  key={pl.id}
+                  type="button"
+                  className={`pill-option-btn ${placement === pl.id ? 'selected' : ''}`}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                  onClick={() => onPlacementChange(pl.id)}
+                >
+                  {pl.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 const QRProfileDesignPage = () => {
-  const [activeTab, setActiveTab] = useState('templates');
+  const [activeTab, setActiveTab] = useState('texts'); // Default to Text Customizer as requested
+  const [textFilter, setTextFilter] = useState('all');
   const [viewport, setViewport] = useState('desktop');
   const [design, setDesign] = useState(null);
   const [initialDraft, setInitialDraft] = useState(null);
@@ -324,14 +582,31 @@ const QRProfileDesignPage = () => {
   const [sampleIsActive, setSampleIsActive] = useState(true);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBg, setUploadingBg] = useState(false);
+  const [selectedElementId, setSelectedElementId] = useState(null);
+
+  // Available member fields from Manage Fields
+  const [availableFields, setAvailableFields] = useState([]);
+
+  // "+ Add Text" Modal State
+  const [showAddTextModal, setShowAddTextModal] = useState(false);
+  const [newTextType, setNewTextType] = useState('custom'); // 'custom' | 'field'
+  const [newTextTitle, setNewTextTitle] = useState('');
+  const [newTextContent, setNewTextContent] = useState('');
+  const [newTextLinkedFieldKey, setNewTextLinkedFieldKey] = useState('');
+  const [newTextPlacement, setNewTextPlacement] = useState('above_fields');
+  const [newTextFontSize, setNewTextFontSize] = useState(14);
+  const [newTextFontWeight, setNewTextFontWeight] = useState('500');
+  const [newTextColor, setNewTextColor] = useState('#0F172A');
+  const [newTextAlignment, setNewTextAlignment] = useState('left');
 
   const logoFileInputRef = useRef(null);
   const bgFileInputRef = useRef(null);
   const { showSuccess, showError } = useToast();
 
-  // Load design on mount
+  // Load design and available fields on mount
   useEffect(() => {
     fetchDesignSettings();
+    fetchAvailableFields();
   }, []);
 
   const fetchDesignSettings = async () => {
@@ -349,6 +624,17 @@ const QRProfileDesignPage = () => {
       showError(err.response?.data?.message || 'Failed to load profile design settings.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAvailableFields = async () => {
+    try {
+      const res = await fieldService.getFields();
+      if (res.success && Array.isArray(res.data)) {
+        setAvailableFields(res.data);
+      }
+    } catch (err) {
+      console.warn('Could not load dynamic fields list:', err);
     }
   };
 
@@ -378,6 +664,143 @@ const QRProfileDesignPage = () => {
     });
   };
 
+  // Helper to update specific textElement
+  const updateTextElement = (key, prop, value) => {
+    setDesign((prev) => {
+      const clone = JSON.parse(JSON.stringify(prev || {}));
+      if (!clone.textElements) clone.textElements = {};
+      if (!clone.textElements[key]) clone.textElements[key] = {};
+      clone.textElements[key][prop] = value;
+
+      // Sync legacy branding properties if applicable
+      if (key === 'orgName') {
+        if (!clone.branding) clone.branding = {};
+        if (prop === 'text') clone.branding.orgName = value;
+        if (prop === 'fontSize') clone.branding.orgNameFontSize = value;
+        if (prop === 'fontWeight') clone.branding.orgNameFontWeight = value;
+        if (prop === 'letterSpacing') clone.branding.orgNameLetterSpacing = value;
+        if (prop === 'lineHeight') clone.branding.orgNameLineHeight = value;
+      } else if (key === 'pageTitle') {
+        if (!clone.branding) clone.branding = {};
+        if (prop === 'text') clone.branding.pageTitle = value;
+        if (prop === 'fontSize') clone.branding.pageTitleFontSize = value;
+        if (prop === 'fontWeight') clone.branding.pageTitleFontWeight = value;
+        if (prop === 'letterSpacing') clone.branding.pageTitleLetterSpacing = value;
+        if (prop === 'lineHeight') clone.branding.pageTitleLineHeight = value;
+      } else if (key === 'subtitle') {
+        if (!clone.branding) clone.branding = {};
+        if (prop === 'text') clone.branding.subtitle = value;
+        if (prop === 'fontSize') clone.branding.subtitleFontSize = value;
+        if (prop === 'fontWeight') clone.branding.subtitleFontWeight = value;
+        if (prop === 'letterSpacing') clone.branding.subtitleLetterSpacing = value;
+        if (prop === 'lineHeight') clone.branding.subtitleLineHeight = value;
+      }
+
+      if (initialDraft) {
+        setIsDirty(JSON.stringify(clone) !== initialDraft);
+      } else {
+        setIsDirty(true);
+      }
+      return clone;
+    });
+  };
+
+  // Helper to update custom text item
+  const updateCustomText = (id, prop, value) => {
+    setDesign((prev) => {
+      const clone = JSON.parse(JSON.stringify(prev || {}));
+      if (!Array.isArray(clone.customTexts)) clone.customTexts = [];
+      const item = clone.customTexts.find((t) => t.id === id);
+      if (item) {
+        item[prop] = value;
+      }
+      if (initialDraft) {
+        setIsDirty(JSON.stringify(clone) !== initialDraft);
+      } else {
+        setIsDirty(true);
+      }
+      return clone;
+    });
+  };
+
+  // Add new Custom Text Element (saves ONLY in ProfileDesign)
+  const handleAddTextSubmit = (e) => {
+    e.preventDefault();
+
+    const title = newTextTitle.trim() || (newTextType === 'field'
+      ? (availableFields.find((f) => f.fieldKey === newTextLinkedFieldKey)?.fieldLabel || 'Member Field')
+      : 'Custom Note');
+
+    const newId = `ct_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    const newElement = {
+      id: newId,
+      title,
+      content: newTextType === 'custom' ? newTextContent.trim() : '',
+      linkedFieldKey: newTextType === 'field' ? newTextLinkedFieldKey : '',
+      placement: newTextPlacement || 'above_fields',
+      visible: true,
+      fontSize: Number(newTextFontSize) || 14,
+      minSize: 10,
+      maxSize: 48,
+      fontWeight: newTextFontWeight || '500',
+      color: newTextColor || '#0F172A',
+      textAlign: newTextAlignment || 'left',
+      lineHeight: 1.35,
+      letterSpacing: '0px',
+      fontFamily: ''
+    };
+
+    setDesign((prev) => {
+      const clone = JSON.parse(JSON.stringify(prev || {}));
+      if (!Array.isArray(clone.customTexts)) clone.customTexts = [];
+      clone.customTexts.push(newElement);
+      setIsDirty(true);
+      return clone;
+    });
+
+    setShowAddTextModal(false);
+    setNewTextTitle('');
+    setNewTextContent('');
+    setNewTextLinkedFieldKey('');
+    setSelectedElementId(newId);
+    showSuccess('New text element added to profile design.');
+  };
+
+  // Delete a custom text element
+  const handleRemoveCustomText = (id) => {
+    if (!window.confirm('Remove this custom text element from the profile design?')) {
+      return;
+    }
+    setDesign((prev) => {
+      const clone = JSON.parse(JSON.stringify(prev || {}));
+      if (Array.isArray(clone.customTexts)) {
+        clone.customTexts = clone.customTexts.filter((t) => t.id !== id);
+      }
+      setIsDirty(true);
+      return clone;
+    });
+    if (selectedElementId === id) setSelectedElementId(null);
+    showSuccess('Text element removed.');
+  };
+
+  // Toggle individual field visibility (Designation/Transport Company, Blood Group, Mobile, Emirates ID, etc.)
+  const toggleFieldVisibility = (fieldKey) => {
+    setDesign((prev) => {
+      const clone = JSON.parse(JSON.stringify(prev || {}));
+      if (!clone.fieldDisplay) clone.fieldDisplay = {};
+      if (!Array.isArray(clone.fieldDisplay.hiddenFields)) clone.fieldDisplay.hiddenFields = [];
+
+      const isHidden = clone.fieldDisplay.hiddenFields.includes(fieldKey);
+      if (isHidden) {
+        clone.fieldDisplay.hiddenFields = clone.fieldDisplay.hiddenFields.filter((k) => k !== fieldKey);
+      } else {
+        clone.fieldDisplay.hiddenFields.push(fieldKey);
+      }
+      setIsDirty(true);
+      return clone;
+    });
+  };
+
   // Save Draft
   const handleSaveDraft = async () => {
     setSavingDraft(true);
@@ -386,7 +809,7 @@ const QRProfileDesignPage = () => {
       if (res.success) {
         setInitialDraft(JSON.stringify(design));
         setIsDirty(false);
-        showSuccess('Draft saved.');
+        showSuccess('Design draft saved successfully.');
       }
     } catch (err) {
       showError(err.response?.data?.message || 'Failed to save draft.');
@@ -407,7 +830,7 @@ const QRProfileDesignPage = () => {
         setInitialDraft(JSON.stringify(design));
         setIsDirty(false);
         setLastPublishedAt(res.data?.lastPublishedAt || new Date().toISOString());
-        showSuccess('Design published.');
+        showSuccess('Design published live to all member QR profiles.');
       }
     } catch (err) {
       showError(err.response?.data?.message || 'Failed to publish design.');
@@ -418,18 +841,19 @@ const QRProfileDesignPage = () => {
 
   // Reset to default
   const handleReset = async () => {
-    if (!window.confirm('Reset design settings to default?')) {
+    if (!window.confirm('Reset design settings to official default KTPD theme?')) {
       return;
     }
     setResetting(true);
     try {
       const res = await designService.resetDesign();
       if (res.success && res.data) {
-        setDesign(res.data.draft || res.data.published);
-        setInitialDraft(JSON.stringify(res.data.draft || res.data.published));
+        const restored = res.data.draft || res.data.published;
+        setDesign(restored);
+        setInitialDraft(JSON.stringify(restored));
         setIsDirty(false);
         setLastPublishedAt(res.data.lastPublishedAt);
-        showSuccess('Design reset.');
+        showSuccess('Profile design reset to default.');
       }
     } catch (err) {
       showError(err.response?.data?.message || 'Failed to reset design.');
@@ -530,6 +954,22 @@ const QRProfileDesignPage = () => {
   const memberPhoto = d.memberPhoto || {};
   const fieldDisplay = d.fieldDisplay || {};
   const footer = d.footer || {};
+  const textElements = d.textElements || {};
+  const customTexts = Array.isArray(d.customTexts) ? d.customTexts : [];
+  const hiddenFields = Array.isArray(fieldDisplay.hiddenFields) ? fieldDisplay.hiddenFields : [];
+
+  // Default Built-in Text Element Accessors
+  const orgNameEl = textElements.orgName || {};
+  const pageTitleEl = textElements.pageTitle || {};
+  const subtitleEl = textElements.subtitle || {};
+  const memberNameEl = textElements.memberName || {};
+  const memberIdEl = textElements.memberId || {};
+  const statusTextEl = textElements.statusText || {};
+  const sectionHeadingEl = textElements.sectionHeading || {};
+  const fieldLabelsEl = textElements.fieldLabels || {};
+  const fieldValuesEl = textElements.fieldValues || {};
+  const footerTextEl = textElements.footerText || {};
+  const securityBadgeTextEl = textElements.securityBadgeText || {};
 
   return (
     <div className="design-customizer-page">
@@ -538,10 +978,10 @@ const QRProfileDesignPage = () => {
         <div className="customizer-title-area">
           <h1>
             <Palette size={26} color="var(--primary)" />
-            <span>QR Public Profile Design</span>
+            <span>QR Public Profile Design Customizer</span>
           </h1>
           <p>
-            Customize the public webpage displayed when someone scans a member's QR code.
+            Fully customize all text elements, font sizes, weights, colors, show/hide, or add new custom text &amp; fields.
           </p>
         </div>
 
@@ -570,7 +1010,7 @@ const QRProfileDesignPage = () => {
             className="btn btn-secondary"
             onClick={handleReset}
             disabled={resetting || savingDraft || publishing}
-            title="Reset to default"
+            title="Reset design to default official KTPD theme"
           >
             <RotateCcw size={15} />
             <span>{resetting ? 'Resetting...' : 'Reset'}</span>
@@ -582,6 +1022,7 @@ const QRProfileDesignPage = () => {
             className="btn btn-secondary"
             onClick={handleSaveDraft}
             disabled={savingDraft || publishing || !isDirty}
+            title="Save as working draft without affecting live member QR scans"
           >
             <Save size={15} />
             <span>{savingDraft ? 'Saving...' : 'Save Draft'}</span>
@@ -594,6 +1035,7 @@ const QRProfileDesignPage = () => {
             onClick={handlePublish}
             disabled={publishing || savingDraft}
             style={{ fontWeight: 700 }}
+            title="Publish live to all member QR profiles"
           >
             <UploadCloud size={16} />
             <span>{publishing ? 'Publishing...' : 'Publish'}</span>
@@ -605,8 +1047,16 @@ const QRProfileDesignPage = () => {
       <div className="customizer-grid">
         {/* ================= LEFT CONTROLS PANEL ================= */}
         <div className="customizer-controls-panel">
-          {/* Tabs */}
+          {/* Main Navigation Tabs */}
           <div className="customizer-tabs">
+            <button
+              type="button"
+              className={`customizer-tab-btn ${activeTab === 'texts' ? 'active' : ''}`}
+              onClick={() => setActiveTab('texts')}
+            >
+              <Type size={16} />
+              <span>Text Elements</span>
+            </button>
             <button
               type="button"
               className={`customizer-tab-btn ${activeTab === 'templates' ? 'active' : ''}`}
@@ -641,19 +1091,11 @@ const QRProfileDesignPage = () => {
             </button>
             <button
               type="button"
-              className={`customizer-tab-btn ${activeTab === 'typography' ? 'active' : ''}`}
-              onClick={() => setActiveTab('typography')}
-            >
-              <Type size={16} />
-              <span>Typography</span>
-            </button>
-            <button
-              type="button"
               className={`customizer-tab-btn ${activeTab === 'card' ? 'active' : ''}`}
               onClick={() => setActiveTab('card')}
             >
               <Layers size={16} />
-              <span>Card & Badges</span>
+              <span>Card &amp; Badges</span>
             </button>
             <button
               type="button"
@@ -661,12 +1103,563 @@ const QRProfileDesignPage = () => {
               onClick={() => setActiveTab('fields')}
             >
               <Sliders size={16} />
-              <span>Fields & Footer</span>
+              <span>Fields &amp; Footer</span>
             </button>
           </div>
 
           <div className="customizer-tab-content">
-            {/* ---------------- 1. TEMPLATES TAB ---------------- */}
+            {/* ---------------- 1. TEXT ELEMENTS & TYPOGRAPHY TAB (PRIMARY) ---------------- */}
+            {activeTab === 'texts' && (
+              <div>
+                {/* Header Action Bar */}
+                <div className="text-elements-manager-header">
+                  <div>
+                    <h2 style={{ fontSize: '1.0625rem', fontWeight: 700, margin: '0 0 0.25rem' }}>
+                      Profile Text Customizer
+                    </h2>
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', margin: 0 }}>
+                      Adjust size, font, color, alignment, or show/hide any text element.
+                    </p>
+                  </div>
+
+                  {/* "+ Add Text" Button */}
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ padding: '0.45rem 0.9rem', fontSize: '0.8125rem', fontWeight: 600 }}
+                    onClick={() => {
+                      setNewTextType('custom');
+                      setNewTextTitle('');
+                      setNewTextContent('');
+                      setNewTextLinkedFieldKey('');
+                      setShowAddTextModal(true);
+                    }}
+                  >
+                    <Plus size={15} />
+                    <span>+ Add Text</span>
+                  </button>
+                </div>
+
+                {/* Filter Bar */}
+                <div className="text-elements-filter-bar">
+                  {[
+                    { id: 'all', label: 'All Elements' },
+                    { id: 'header', label: 'Header & Brand' },
+                    { id: 'hero', label: 'Member Hero & ID' },
+                    { id: 'fields', label: 'Fields & Section' },
+                    { id: 'footer', label: 'Footer & Notice' },
+                    { id: 'custom', label: `Custom Texts (${customTexts.length})` }
+                  ].map((flt) => (
+                    <button
+                      key={flt.id}
+                      type="button"
+                      className={`text-filter-btn ${textFilter === flt.id ? 'active' : ''}`}
+                      onClick={() => setTextFilter(flt.id)}
+                    >
+                      {flt.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* ================= SECTION A: HEADER & BRAND TEXTS ================= */}
+                {(textFilter === 'all' || textFilter === 'header') && (
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>
+                      Header &amp; Brand Elements
+                    </div>
+
+                    {/* 1. Organization Name */}
+                    <TextElementCustomizerCard
+                      id="orgName"
+                      title="Organization Name"
+                      textValue={orgNameEl.text !== undefined ? orgNameEl.text : branding.orgName || ''}
+                      onTextChange={(val) => updateTextElement('orgName', 'text', val)}
+                      placeholder="e.g. KTPD Drivers Association"
+                      visible={orgNameEl.visible !== false}
+                      onVisibleChange={(val) => updateTextElement('orgName', 'visible', val)}
+                      fontSize={orgNameEl.fontSize || branding.orgNameFontSize || 24}
+                      defaultSize={24}
+                      minSize={12}
+                      maxSize={48}
+                      onFontSizeChange={(val) => updateTextElement('orgName', 'fontSize', val)}
+                      fontWeight={orgNameEl.fontWeight || branding.orgNameFontWeight || '700'}
+                      onFontWeightChange={(val) => updateTextElement('orgName', 'fontWeight', val)}
+                      color={orgNameEl.color}
+                      defaultColor="#FFFFFF"
+                      onColorChange={(val) => updateTextElement('orgName', 'color', val)}
+                      textAlign={orgNameEl.textAlign || branding.headerTextAlign || 'center'}
+                      onTextAlignChange={(val) => updateTextElement('orgName', 'textAlign', val)}
+                      letterSpacing={orgNameEl.letterSpacing || branding.orgNameLetterSpacing || '0px'}
+                      onLetterSpacingChange={(val) => updateTextElement('orgName', 'letterSpacing', val)}
+                      lineHeight={orgNameEl.lineHeight || branding.orgNameLineHeight || 1.25}
+                      onLineHeightChange={(val) => updateTextElement('orgName', 'lineHeight', val)}
+                      fontFamily={orgNameEl.fontFamily}
+                      onFontFamilyChange={(val) => updateTextElement('orgName', 'fontFamily', val)}
+                      isSelected={selectedElementId === 'orgName'}
+                    />
+
+                    {/* 2. Profile Page Title */}
+                    <TextElementCustomizerCard
+                      id="pageTitle"
+                      title="Profile Page Title"
+                      textValue={pageTitleEl.text !== undefined ? pageTitleEl.text : branding.pageTitle || ''}
+                      onTextChange={(val) => updateTextElement('pageTitle', 'text', val)}
+                      placeholder="e.g. Official Digital Verification"
+                      visible={pageTitleEl.visible !== false}
+                      onVisibleChange={(val) => updateTextElement('pageTitle', 'visible', val)}
+                      fontSize={pageTitleEl.fontSize || branding.pageTitleFontSize || 28}
+                      defaultSize={28}
+                      minSize={14}
+                      maxSize={56}
+                      onFontSizeChange={(val) => updateTextElement('pageTitle', 'fontSize', val)}
+                      fontWeight={pageTitleEl.fontWeight || branding.pageTitleFontWeight || '600'}
+                      onFontWeightChange={(val) => updateTextElement('pageTitle', 'fontWeight', val)}
+                      color={pageTitleEl.color}
+                      defaultColor="#BFDBFE"
+                      onColorChange={(val) => updateTextElement('pageTitle', 'color', val)}
+                      textAlign={pageTitleEl.textAlign || branding.headerTextAlign || 'center'}
+                      onTextAlignChange={(val) => updateTextElement('pageTitle', 'textAlign', val)}
+                      letterSpacing={pageTitleEl.letterSpacing || branding.pageTitleLetterSpacing || '0px'}
+                      onLetterSpacingChange={(val) => updateTextElement('pageTitle', 'letterSpacing', val)}
+                      lineHeight={pageTitleEl.lineHeight || branding.pageTitleLineHeight || 1.25}
+                      onLineHeightChange={(val) => updateTextElement('pageTitle', 'lineHeight', val)}
+                      fontFamily={pageTitleEl.fontFamily}
+                      onFontFamilyChange={(val) => updateTextElement('pageTitle', 'fontFamily', val)}
+                      isSelected={selectedElementId === 'pageTitle'}
+                    />
+
+                    {/* 3. Subtitle / Chapter Tagline */}
+                    <TextElementCustomizerCard
+                      id="subtitle"
+                      title="Subtitle / Chapter Tagline"
+                      textValue={subtitleEl.text !== undefined ? subtitleEl.text : branding.subtitle || ''}
+                      onTextChange={(val) => updateTextElement('subtitle', 'text', val)}
+                      placeholder="e.g. UAE Chapter • Kerala Transport Drivers Association"
+                      visible={subtitleEl.visible !== false}
+                      onVisibleChange={(val) => updateTextElement('subtitle', 'visible', val)}
+                      fontSize={subtitleEl.fontSize || branding.subtitleFontSize || 16}
+                      defaultSize={16}
+                      minSize={10}
+                      maxSize={32}
+                      onFontSizeChange={(val) => updateTextElement('subtitle', 'fontSize', val)}
+                      fontWeight={subtitleEl.fontWeight || branding.subtitleFontWeight || '500'}
+                      onFontWeightChange={(val) => updateTextElement('subtitle', 'fontWeight', val)}
+                      color={subtitleEl.color}
+                      defaultColor="#93C5FD"
+                      onColorChange={(val) => updateTextElement('subtitle', 'color', val)}
+                      textAlign={subtitleEl.textAlign || branding.headerTextAlign || 'center'}
+                      onTextAlignChange={(val) => updateTextElement('subtitle', 'textAlign', val)}
+                      letterSpacing={subtitleEl.letterSpacing || branding.subtitleLetterSpacing || '0.5px'}
+                      onLetterSpacingChange={(val) => updateTextElement('subtitle', 'letterSpacing', val)}
+                      lineHeight={subtitleEl.lineHeight || branding.subtitleLineHeight || 1.35}
+                      onLineHeightChange={(val) => updateTextElement('subtitle', 'lineHeight', val)}
+                      fontFamily={subtitleEl.fontFamily}
+                      onFontFamilyChange={(val) => updateTextElement('subtitle', 'fontFamily', val)}
+                      isSelected={selectedElementId === 'subtitle'}
+                    />
+                  </div>
+                )}
+
+                {/* ================= SECTION B: MEMBER HERO & ID ================= */}
+                {(textFilter === 'all' || textFilter === 'hero') && (
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>
+                      Member Hero &amp; Identification Elements
+                    </div>
+
+                    {/* 4. Member Name */}
+                    <TextElementCustomizerCard
+                      id="memberName"
+                      title="Member Display Name"
+                      isTextEditable={false}
+                      placeholder="Rendered dynamically from Member record"
+                      visible={memberNameEl.visible !== false}
+                      onVisibleChange={(val) => updateTextElement('memberName', 'visible', val)}
+                      fontSize={memberNameEl.fontSize || 24}
+                      defaultSize={24}
+                      minSize={14}
+                      maxSize={48}
+                      onFontSizeChange={(val) => updateTextElement('memberName', 'fontSize', val)}
+                      fontWeight={memberNameEl.fontWeight || typography.fontWeight || '700'}
+                      onFontWeightChange={(val) => updateTextElement('memberName', 'fontWeight', val)}
+                      color={memberNameEl.color}
+                      defaultColor={colors.headingColor || '#0F172A'}
+                      onColorChange={(val) => updateTextElement('memberName', 'color', val)}
+                      textAlign={memberNameEl.textAlign || typography.textAlign || 'center'}
+                      onTextAlignChange={(val) => updateTextElement('memberName', 'textAlign', val)}
+                      letterSpacing={memberNameEl.letterSpacing || '0px'}
+                      onLetterSpacingChange={(val) => updateTextElement('memberName', 'letterSpacing', val)}
+                      lineHeight={memberNameEl.lineHeight || 1.25}
+                      onLineHeightChange={(val) => updateTextElement('memberName', 'lineHeight', val)}
+                      fontFamily={memberNameEl.fontFamily}
+                      onFontFamilyChange={(val) => updateTextElement('memberName', 'fontFamily', val)}
+                      isSelected={selectedElementId === 'memberName'}
+                    />
+
+                    {/* 5. KTPD Number (ID Badge) */}
+                    <TextElementCustomizerCard
+                      id="memberId"
+                      title="KTPD Number (Membership ID Badge)"
+                      isTextEditable={false}
+                      placeholder="Rendered dynamically from Member ID"
+                      visible={memberIdEl.visible !== false}
+                      onVisibleChange={(val) => updateTextElement('memberId', 'visible', val)}
+                      fontSize={memberIdEl.fontSize || 15}
+                      defaultSize={15}
+                      minSize={11}
+                      maxSize={32}
+                      onFontSizeChange={(val) => updateTextElement('memberId', 'fontSize', val)}
+                      fontWeight={memberIdEl.fontWeight || '700'}
+                      onFontWeightChange={(val) => updateTextElement('memberId', 'fontWeight', val)}
+                      color={memberIdEl.color}
+                      defaultColor={colors.primary || '#1D4ED8'}
+                      onColorChange={(val) => updateTextElement('memberId', 'color', val)}
+                      textAlign={memberIdEl.textAlign || 'center'}
+                      onTextAlignChange={(val) => updateTextElement('memberId', 'textAlign', val)}
+                      letterSpacing={memberIdEl.letterSpacing || '0.5px'}
+                      onLetterSpacingChange={(val) => updateTextElement('memberId', 'letterSpacing', val)}
+                      lineHeight={memberIdEl.lineHeight || 1.2}
+                      onLineHeightChange={(val) => updateTextElement('memberId', 'lineHeight', val)}
+                      fontFamily={memberIdEl.fontFamily}
+                      onFontFamilyChange={(val) => updateTextElement('memberId', 'fontFamily', val)}
+                      isSelected={selectedElementId === 'memberId'}
+                    />
+
+                    {/* 6. Membership Status Text */}
+                    <TextElementCustomizerCard
+                      id="statusText"
+                      title="Status Banner / Pill Text"
+                      isTextEditable={false}
+                      placeholder="Dynamic based on member status (Active / Inactive)"
+                      visible={statusTextEl.visible !== false}
+                      onVisibleChange={(val) => updateTextElement('statusText', 'visible', val)}
+                      fontSize={statusTextEl.fontSize || 13}
+                      defaultSize={13}
+                      minSize={10}
+                      maxSize={24}
+                      onFontSizeChange={(val) => updateTextElement('statusText', 'fontSize', val)}
+                      fontWeight={statusTextEl.fontWeight || '600'}
+                      onFontWeightChange={(val) => updateTextElement('statusText', 'fontWeight', val)}
+                      color={statusTextEl.color}
+                      defaultColor={colors.activeStatusText || '#15803D'}
+                      onColorChange={(val) => updateTextElement('statusText', 'color', val)}
+                      textAlign={statusTextEl.textAlign || 'center'}
+                      onTextAlignChange={(val) => updateTextElement('statusText', 'textAlign', val)}
+                      letterSpacing={statusTextEl.letterSpacing || '0px'}
+                      onLetterSpacingChange={(val) => updateTextElement('statusText', 'letterSpacing', val)}
+                      lineHeight={statusTextEl.lineHeight || 1.2}
+                      onLineHeightChange={(val) => updateTextElement('statusText', 'lineHeight', val)}
+                      fontFamily={statusTextEl.fontFamily}
+                      onFontFamilyChange={(val) => updateTextElement('statusText', 'fontFamily', val)}
+                      isSelected={selectedElementId === 'statusText'}
+                    />
+                  </div>
+                )}
+
+                {/* ================= SECTION C: FIELDS & SECTION TEXTS ================= */}
+                {(textFilter === 'all' || textFilter === 'fields') && (
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>
+                      Card Section &amp; Field Attributes
+                    </div>
+
+                    {/* 7. Section Heading */}
+                    <TextElementCustomizerCard
+                      id="sectionHeading"
+                      title="Section Heading Text"
+                      textValue={sectionHeadingEl.text !== undefined ? sectionHeadingEl.text : 'Member Information'}
+                      onTextChange={(val) => updateTextElement('sectionHeading', 'text', val)}
+                      placeholder="e.g. Member Information or Driver Details"
+                      visible={sectionHeadingEl.visible !== false}
+                      onVisibleChange={(val) => updateTextElement('sectionHeading', 'visible', val)}
+                      fontSize={sectionHeadingEl.fontSize || 16}
+                      defaultSize={16}
+                      minSize={12}
+                      maxSize={32}
+                      onFontSizeChange={(val) => updateTextElement('sectionHeading', 'fontSize', val)}
+                      fontWeight={sectionHeadingEl.fontWeight || '600'}
+                      onFontWeightChange={(val) => updateTextElement('sectionHeading', 'fontWeight', val)}
+                      color={sectionHeadingEl.color}
+                      defaultColor={colors.primary || '#1D4ED8'}
+                      onColorChange={(val) => updateTextElement('sectionHeading', 'color', val)}
+                      textAlign={sectionHeadingEl.textAlign || 'left'}
+                      onTextAlignChange={(val) => updateTextElement('sectionHeading', 'textAlign', val)}
+                      letterSpacing={sectionHeadingEl.letterSpacing || '0px'}
+                      onLetterSpacingChange={(val) => updateTextElement('sectionHeading', 'letterSpacing', val)}
+                      lineHeight={sectionHeadingEl.lineHeight || 1.3}
+                      onLineHeightChange={(val) => updateTextElement('sectionHeading', 'lineHeight', val)}
+                      fontFamily={sectionHeadingEl.fontFamily}
+                      onFontFamilyChange={(val) => updateTextElement('sectionHeading', 'fontFamily', val)}
+                      isSelected={selectedElementId === 'sectionHeading'}
+                    />
+
+                    {/* 8. Field Labels */}
+                    <TextElementCustomizerCard
+                      id="fieldLabels"
+                      title="Field Labels (All Attribute Titles)"
+                      isTextEditable={false}
+                      placeholder="Controls all field title labels"
+                      visible={fieldLabelsEl.visible !== false}
+                      onVisibleChange={(val) => updateTextElement('fieldLabels', 'visible', val)}
+                      fontSize={fieldLabelsEl.fontSize || 12}
+                      defaultSize={12}
+                      minSize={10}
+                      maxSize={22}
+                      onFontSizeChange={(val) => updateTextElement('fieldLabels', 'fontSize', val)}
+                      fontWeight={fieldLabelsEl.fontWeight || '600'}
+                      onFontWeightChange={(val) => updateTextElement('fieldLabels', 'fontWeight', val)}
+                      color={fieldLabelsEl.color}
+                      defaultColor={colors.labelColor || '#64748B'}
+                      onColorChange={(val) => updateTextElement('fieldLabels', 'color', val)}
+                      textAlign={fieldLabelsEl.textAlign || 'left'}
+                      onTextAlignChange={(val) => updateTextElement('fieldLabels', 'textAlign', val)}
+                      letterSpacing={fieldLabelsEl.letterSpacing || '0.5px'}
+                      onLetterSpacingChange={(val) => updateTextElement('fieldLabels', 'letterSpacing', val)}
+                      lineHeight={fieldLabelsEl.lineHeight || 1.2}
+                      onLineHeightChange={(val) => updateTextElement('fieldLabels', 'lineHeight', val)}
+                      fontFamily={fieldLabelsEl.fontFamily}
+                      onFontFamilyChange={(val) => updateTextElement('fieldLabels', 'fontFamily', val)}
+                      isSelected={selectedElementId === 'fieldLabels'}
+                    />
+
+                    {/* 9. Field Values */}
+                    <TextElementCustomizerCard
+                      id="fieldValues"
+                      title="Field Values (All Member Attribute Values)"
+                      isTextEditable={false}
+                      placeholder="Controls all field content values"
+                      visible={fieldValuesEl.visible !== false}
+                      onVisibleChange={(val) => updateTextElement('fieldValues', 'visible', val)}
+                      fontSize={fieldValuesEl.fontSize || 14}
+                      defaultSize={14}
+                      minSize={11}
+                      maxSize={26}
+                      onFontSizeChange={(val) => updateTextElement('fieldValues', 'fontSize', val)}
+                      fontWeight={fieldValuesEl.fontWeight || '500'}
+                      onFontWeightChange={(val) => updateTextElement('fieldValues', 'fontWeight', val)}
+                      color={fieldValuesEl.color}
+                      defaultColor={colors.textPrimary || '#0F172A'}
+                      onColorChange={(val) => updateTextElement('fieldValues', 'color', val)}
+                      textAlign={fieldValuesEl.textAlign || 'left'}
+                      onTextAlignChange={(val) => updateTextElement('fieldValues', 'textAlign', val)}
+                      letterSpacing={fieldValuesEl.letterSpacing || '0px'}
+                      onLetterSpacingChange={(val) => updateTextElement('fieldValues', 'letterSpacing', val)}
+                      lineHeight={fieldValuesEl.lineHeight || 1.35}
+                      onLineHeightChange={(val) => updateTextElement('fieldValues', 'lineHeight', val)}
+                      fontFamily={fieldValuesEl.fontFamily}
+                      onFontFamilyChange={(val) => updateTextElement('fieldValues', 'fontFamily', val)}
+                      isSelected={selectedElementId === 'fieldValues'}
+                    />
+
+                    {/* Individual Field Show/Hide Manager */}
+                    <div className="control-group" style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                      <div className="control-label" style={{ marginBottom: '0.5rem' }}>
+                        <span style={{ fontWeight: 700 }}>Individual Member Field Visibility</span>
+                        <span className="control-hint">Toggle specific fields on or off the public profile</span>
+                      </div>
+
+                      <div className="field-visibility-grid">
+                        {[
+                          { key: 'transportCompany', label: 'Transport Company / Designation' },
+                          { key: 'bloodGroup', label: 'Blood Group' },
+                          { key: 'mobileNo', label: 'Mobile Number' },
+                          { key: 'emiratesId', label: 'Emirates ID' },
+                          { key: 'livingArea', label: 'Living Area (UAE)' },
+                          { key: 'india', label: 'India Hometown' },
+                          { key: 'addressInIndia', label: 'Address in India' },
+                          { key: 'emergencyContact', label: 'Emergency Contact' },
+                          ...availableFields
+                            .filter((f) => !['name', 'memberId', 'transportCompany', 'bloodGroup', 'mobileNo', 'emiratesId', 'livingArea', 'india', 'addressInIndia', 'emergencyContact'].includes(f.fieldKey))
+                            .map((f) => ({ key: f.fieldKey, label: f.fieldLabel }))
+                        ].map((f) => {
+                          const isHidden = hiddenFields.includes(f.key);
+                          return (
+                            <label key={f.key} className="field-visibility-item">
+                              <input
+                                type="checkbox"
+                                checked={!isHidden}
+                                onChange={() => toggleFieldVisibility(f.key)}
+                              />
+                              <span style={{ flex: 1, color: isHidden ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+                                {f.label}
+                              </span>
+                              {isHidden && <EyeOff size={13} color="var(--text-muted)" />}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ================= SECTION D: FOOTER & SECURITY NOTICE ================= */}
+                {(textFilter === 'all' || textFilter === 'footer') && (
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>
+                      Footer &amp; Security Elements
+                    </div>
+
+                    {/* 10. Footer Notice Text */}
+                    <TextElementCustomizerCard
+                      id="footerText"
+                      title="Footer Verification Notice"
+                      textValue={footerTextEl.text !== undefined ? footerTextEl.text : footer.text || ''}
+                      onTextChange={(val) => {
+                        updateTextElement('footerText', 'text', val);
+                        updateDesignField('footer.text', val);
+                      }}
+                      placeholder="e.g. This digital card is cryptographically verified against the KTPD Database."
+                      visible={footerTextEl.visible !== false}
+                      onVisibleChange={(val) => updateTextElement('footerText', 'visible', val)}
+                      fontSize={footerTextEl.fontSize || 12}
+                      defaultSize={12}
+                      minSize={9}
+                      maxSize={22}
+                      onFontSizeChange={(val) => updateTextElement('footerText', 'fontSize', val)}
+                      fontWeight={footerTextEl.fontWeight || '400'}
+                      onFontWeightChange={(val) => updateTextElement('footerText', 'fontWeight', val)}
+                      color={footerTextEl.color}
+                      defaultColor={colors.textSecondary || '#64748B'}
+                      onColorChange={(val) => updateTextElement('footerText', 'color', val)}
+                      textAlign={footerTextEl.textAlign || 'center'}
+                      onTextAlignChange={(val) => updateTextElement('footerText', 'textAlign', val)}
+                      letterSpacing={footerTextEl.letterSpacing || '0px'}
+                      onLetterSpacingChange={(val) => updateTextElement('footerText', 'letterSpacing', val)}
+                      lineHeight={footerTextEl.lineHeight || 1.4}
+                      onLineHeightChange={(val) => updateTextElement('footerText', 'lineHeight', val)}
+                      fontFamily={footerTextEl.fontFamily}
+                      onFontFamilyChange={(val) => updateTextElement('footerText', 'fontFamily', val)}
+                      isSelected={selectedElementId === 'footerText'}
+                    />
+
+                    {/* 11. Security Badge Text */}
+                    <TextElementCustomizerCard
+                      id="securityBadgeText"
+                      title="Security Badge Text"
+                      textValue={securityBadgeTextEl.text !== undefined ? securityBadgeTextEl.text : footer.securityBadgeText || ''}
+                      onTextChange={(val) => {
+                        updateTextElement('securityBadgeText', 'text', val);
+                        updateDesignField('footer.securityBadgeText', val);
+                      }}
+                      placeholder="e.g. Permanent Dynamic QR Authentication Active"
+                      visible={securityBadgeTextEl.visible !== false}
+                      onVisibleChange={(val) => updateTextElement('securityBadgeText', 'visible', val)}
+                      fontSize={securityBadgeTextEl.fontSize || 11}
+                      defaultSize={11}
+                      minSize={9}
+                      maxSize={20}
+                      onFontSizeChange={(val) => updateTextElement('securityBadgeText', 'fontSize', val)}
+                      fontWeight={securityBadgeTextEl.fontWeight || '600'}
+                      onFontWeightChange={(val) => updateTextElement('securityBadgeText', 'fontWeight', val)}
+                      color={securityBadgeTextEl.color}
+                      defaultColor="#16A34A"
+                      onColorChange={(val) => updateTextElement('securityBadgeText', 'color', val)}
+                      textAlign={securityBadgeTextEl.textAlign || 'center'}
+                      onTextAlignChange={(val) => updateTextElement('securityBadgeText', 'textAlign', val)}
+                      letterSpacing={securityBadgeTextEl.letterSpacing || '0.25px'}
+                      onLetterSpacingChange={(val) => updateTextElement('securityBadgeText', 'letterSpacing', val)}
+                      lineHeight={securityBadgeTextEl.lineHeight || 1.2}
+                      onLineHeightChange={(val) => updateTextElement('securityBadgeText', 'lineHeight', val)}
+                      fontFamily={securityBadgeTextEl.fontFamily}
+                      onFontFamilyChange={(val) => updateTextElement('securityBadgeText', 'fontFamily', val)}
+                      isSelected={selectedElementId === 'securityBadgeText'}
+                    />
+                  </div>
+                )}
+
+                {/* ================= SECTION E: CUSTOM TEXT ELEMENTS ================= */}
+                {(textFilter === 'all' || textFilter === 'custom') && (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Custom Profile Text Items ({customTexts.length})
+                      </span>
+                    </div>
+
+                    {customTexts.length === 0 ? (
+                      <div
+                        style={{
+                          padding: '2rem 1rem',
+                          textAlign: 'center',
+                          backgroundColor: 'var(--bg-subtle)',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px dashed var(--border)',
+                          color: 'var(--text-secondary)'
+                        }}
+                      >
+                        <Type size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.75rem' }} />
+                        <p style={{ margin: '0 0 0.5rem', fontWeight: 600 }}>No custom text elements added yet.</p>
+                        <p style={{ margin: '0 0 1rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                          Click "+ Add Text" to add custom notices, instructions, or link fields from Manage Fields.
+                        </p>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            setNewTextType('custom');
+                            setNewTextTitle('');
+                            setNewTextContent('');
+                            setNewTextLinkedFieldKey('');
+                            setShowAddTextModal(true);
+                          }}
+                        >
+                          <Plus size={14} />
+                          <span>+ Add Text Now</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {customTexts.map((item) => {
+                          const linkedDef = item.linkedFieldKey
+                            ? availableFields.find((f) => f.fieldKey === item.linkedFieldKey)
+                            : null;
+                          return (
+                            <TextElementCustomizerCard
+                              key={item.id}
+                              id={item.id}
+                              title={item.title || 'Custom Text'}
+                              onRename={(newTitle) => updateCustomText(item.id, 'title', newTitle)}
+                              textValue={item.content || ''}
+                              onTextChange={!item.linkedFieldKey ? (val) => updateCustomText(item.id, 'content', val) : undefined}
+                              isTextEditable={!item.linkedFieldKey}
+                              placeholder="Enter custom text content..."
+                              visible={item.visible !== false}
+                              onVisibleChange={(val) => updateCustomText(item.id, 'visible', val)}
+                              canRemove={true}
+                              onRemove={() => handleRemoveCustomText(item.id)}
+                              placement={item.placement || 'above_fields'}
+                              onPlacementChange={(val) => updateCustomText(item.id, 'placement', val)}
+                              fontSize={item.fontSize || 14}
+                              defaultSize={14}
+                              minSize={10}
+                              maxSize={48}
+                              onFontSizeChange={(val) => updateCustomText(item.id, 'fontSize', val)}
+                              fontWeight={item.fontWeight || '500'}
+                              onFontWeightChange={(val) => updateCustomText(item.id, 'fontWeight', val)}
+                              color={item.color}
+                              defaultColor="#0F172A"
+                              onColorChange={(val) => updateCustomText(item.id, 'color', val)}
+                              textAlign={item.textAlign || 'left'}
+                              onTextAlignChange={(val) => updateCustomText(item.id, 'textAlign', val)}
+                              letterSpacing={item.letterSpacing || '0px'}
+                              onLetterSpacingChange={(val) => updateCustomText(item.id, 'letterSpacing', val)}
+                              lineHeight={item.lineHeight || 1.35}
+                              onLineHeightChange={(val) => updateCustomText(item.id, 'lineHeight', val)}
+                              fontFamily={item.fontFamily}
+                              onFontFamilyChange={(val) => updateCustomText(item.id, 'fontFamily', val)}
+                              isSelected={selectedElementId === item.id}
+                              linkedFieldLabel={linkedDef ? linkedDef.fieldLabel : (item.linkedFieldKey || undefined)}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ---------------- 2. TEMPLATES TAB ---------------- */}
             {activeTab === 'templates' && (
               <div>
                 <div className="control-group">
@@ -716,7 +1709,7 @@ const QRProfileDesignPage = () => {
               </div>
             )}
 
-            {/* ---------------- 2. BRANDING TAB ---------------- */}
+            {/* ---------------- 3. BRANDING TAB ---------------- */}
             {activeTab === 'branding' && (
               <div>
                 {/* Logo Upload & Controls */}
@@ -783,7 +1776,7 @@ const QRProfileDesignPage = () => {
                 {/* Header Layout & Text Alignment */}
                 <div className="control-group">
                   <div className="control-label">
-                    <span>Header Layout & Text Alignment</span>
+                    <span>Header Layout &amp; Alignment</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     <div className="pill-options-row">
@@ -803,7 +1796,6 @@ const QRProfileDesignPage = () => {
                       ))}
                     </div>
 
-                    {/* Text Alignment (Left, Center, Right) */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                         Text Align:
@@ -822,7 +1814,12 @@ const QRProfileDesignPage = () => {
                               type="button"
                               className={`pill-option-btn ${isSelected ? 'selected' : ''}`}
                               style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
-                              onClick={() => updateDesignField('branding.headerTextAlign', align.id)}
+                              onClick={() => {
+                                updateDesignField('branding.headerTextAlign', align.id);
+                                updateTextElement('orgName', 'textAlign', align.id);
+                                updateTextElement('pageTitle', 'textAlign', align.id);
+                                updateTextElement('subtitle', 'textAlign', align.id);
+                              }}
                             >
                               <IconComponent size={13} />
                               <span>{align.label}</span>
@@ -834,66 +1831,28 @@ const QRProfileDesignPage = () => {
                   </div>
                 </div>
 
-                {/* 1. Organization Name Element Controls */}
-                <TextElementCustomizerCard
-                  title="Organization Name"
-                  textValue={branding.orgName || ''}
-                  onTextChange={(val) => updateDesignField('branding.orgName', val)}
-                  placeholder="e.g. Kerala Transport Drivers Association (KTPD)"
-                  fontSize={branding.orgNameFontSize}
-                  defaultSize={24}
-                  minSize={12}
-                  maxSize={48}
-                  onFontSizeChange={(val) => updateDesignField('branding.orgNameFontSize', val)}
-                  fontWeight={branding.orgNameFontWeight}
-                  onFontWeightChange={(val) => updateDesignField('branding.orgNameFontWeight', val)}
-                  letterSpacing={branding.orgNameLetterSpacing}
-                  onLetterSpacingChange={(val) => updateDesignField('branding.orgNameLetterSpacing', val)}
-                  lineHeight={branding.orgNameLineHeight}
-                  onLineHeightChange={(val) => updateDesignField('branding.orgNameLineHeight', val)}
-                />
-
-                {/* 2. Profile Page Title Element Controls */}
-                <TextElementCustomizerCard
-                  title="Profile Page Title"
-                  textValue={branding.pageTitle || ''}
-                  onTextChange={(val) => updateDesignField('branding.pageTitle', val)}
-                  placeholder="e.g. Official Digital Verification"
-                  fontSize={branding.pageTitleFontSize}
-                  defaultSize={28}
-                  minSize={14}
-                  maxSize={56}
-                  onFontSizeChange={(val) => updateDesignField('branding.pageTitleFontSize', val)}
-                  fontWeight={branding.pageTitleFontWeight}
-                  onFontWeightChange={(val) => updateDesignField('branding.pageTitleFontWeight', val)}
-                  letterSpacing={branding.pageTitleLetterSpacing}
-                  onLetterSpacingChange={(val) => updateDesignField('branding.pageTitleLetterSpacing', val)}
-                  lineHeight={branding.pageTitleLineHeight}
-                  onLineHeightChange={(val) => updateDesignField('branding.pageTitleLineHeight', val)}
-                />
-
-                {/* 3. Subtitle / Chapter Tagline Element Controls */}
-                <TextElementCustomizerCard
-                  title="Subtitle / Chapter Tagline"
-                  textValue={branding.subtitle || ''}
-                  onTextChange={(val) => updateDesignField('branding.subtitle', val)}
-                  placeholder="e.g. UAE Chapter • Registered Transport Drivers"
-                  fontSize={branding.subtitleFontSize}
-                  defaultSize={16}
-                  minSize={10}
-                  maxSize={32}
-                  onFontSizeChange={(val) => updateDesignField('branding.subtitleFontSize', val)}
-                  fontWeight={branding.subtitleFontWeight}
-                  onFontWeightChange={(val) => updateDesignField('branding.subtitleFontWeight', val)}
-                  letterSpacing={branding.subtitleLetterSpacing}
-                  onLetterSpacingChange={(val) => updateDesignField('branding.subtitleLetterSpacing', val)}
-                  lineHeight={branding.subtitleLineHeight}
-                  onLineHeightChange={(val) => updateDesignField('branding.subtitleLineHeight', val)}
-                />
+                {/* Quick Link to Text Customizer */}
+                <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                  <p style={{ margin: '0 0 0.5rem', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                    Looking for full font size, color, weight and alignment controls for header texts?
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.75rem' }}
+                    onClick={() => {
+                      setActiveTab('texts');
+                      setTextFilter('header');
+                    }}
+                  >
+                    <Type size={13} />
+                    <span>Open Text Elements Customizer</span>
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* ---------------- 3. COLORS TAB ---------------- */}
+            {/* ---------------- 4. COLORS TAB ---------------- */}
             {activeTab === 'colors' && (
               <div>
                 {/* Presets */}
@@ -960,11 +1919,7 @@ const QRProfileDesignPage = () => {
                             type="text"
                             className="color-hex-text"
                             value={col.val}
-                            maxLength={7}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              updateDesignField(col.key, val);
-                            }}
+                            onChange={(e) => updateDesignField(col.key, e.target.value)}
                           />
                         </div>
                       </div>
@@ -974,26 +1929,26 @@ const QRProfileDesignPage = () => {
               </div>
             )}
 
-            {/* ---------------- 4. BACKGROUND TAB ---------------- */}
+            {/* ---------------- 5. BACKGROUND TAB ---------------- */}
             {activeTab === 'background' && (
               <div>
                 <div className="control-group">
                   <div className="control-label">
-                    <span>Page Background Type</span>
+                    <span>Background Type</span>
                   </div>
                   <div className="pill-options-row">
                     {[
-                      { id: 'gradient', label: 'Gradient' },
+                      { id: 'gradient', label: 'Linear Gradient' },
                       { id: 'solid', label: 'Solid Color' },
-                      { id: 'image', label: 'Background Image' }
-                    ].map((opt) => (
+                      { id: 'image', label: 'Custom Wallpaper' }
+                    ].map((type) => (
                       <button
-                        key={opt.id}
+                        key={type.id}
                         type="button"
-                        className={`pill-option-btn ${(background.type || 'gradient') === opt.id ? 'selected' : ''}`}
-                        onClick={() => updateDesignField('background.type', opt.id)}
+                        className={`pill-option-btn ${(background.type || 'gradient') === type.id ? 'selected' : ''}`}
+                        onClick={() => updateDesignField('background.type', type.id)}
                       >
-                        {opt.label}
+                        {type.label}
                       </button>
                     ))}
                   </div>
@@ -1182,101 +2137,6 @@ const QRProfileDesignPage = () => {
               </div>
             )}
 
-            {/* ---------------- 5. TYPOGRAPHY TAB ---------------- */}
-            {activeTab === 'typography' && (
-              <div>
-                {/* Font Family */}
-                <div className="control-group">
-                  <div className="control-label">
-                    <span>Primary Font Family (Google Fonts)</span>
-                  </div>
-                  <div className="pill-options-row">
-                    {FONT_OPTIONS.map((font) => (
-                      <button
-                        key={font}
-                        type="button"
-                        className={`pill-option-btn ${(typography.fontFamily || 'Poppins') === font ? 'selected' : ''}`}
-                        onClick={() => updateDesignField('typography.fontFamily', font)}
-                        style={{ fontFamily: font }}
-                      >
-                        {font}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Heading Size */}
-                <div className="control-group">
-                  <div className="control-label">
-                    <span>Member Name Font Size</span>
-                  </div>
-                  <div className="pill-options-row">
-                    {[
-                      { id: '1.125rem', label: 'Medium (1.1rem)' },
-                      { id: '1.25rem', label: 'Standard (1.25rem)' },
-                      { id: '1.5rem', label: 'Large (1.5rem)' },
-                      { id: '1.75rem', label: 'Extra Large (1.75rem)' }
-                    ].map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        className={`pill-option-btn ${(typography.headingSize || '1.25rem') === opt.id ? 'selected' : ''}`}
-                        onClick={() => updateDesignField('typography.headingSize', opt.id)}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Font Weight */}
-                <div className="control-group">
-                  <div className="control-label">
-                    <span>Heading Font Weight</span>
-                  </div>
-                  <div className="pill-options-row">
-                    {[
-                      { id: '500', label: 'Medium (500)' },
-                      { id: '600', label: 'Semi-Bold (600)' },
-                      { id: '700', label: 'Bold (700)' },
-                      { id: '800', label: 'Extra Bold (800)' }
-                    ].map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        className={`pill-option-btn ${(typography.fontWeight || '700') === opt.id ? 'selected' : ''}`}
-                        onClick={() => updateDesignField('typography.fontWeight', opt.id)}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Text Align */}
-                <div className="control-group">
-                  <div className="control-label">
-                    <span>Member Name & Header Alignment</span>
-                  </div>
-                  <div className="pill-options-row">
-                    {[
-                      { id: 'center', label: 'Center' },
-                      { id: 'left', label: 'Left Aligned' }
-                    ].map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        className={`pill-option-btn ${(typography.textAlign || 'center') === opt.id ? 'selected' : ''}`}
-                        onClick={() => updateDesignField('typography.textAlign', opt.id)}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* ---------------- 6. CARD & BADGES TAB ---------------- */}
             {activeTab === 'card' && (
               <div>
@@ -1347,7 +2207,7 @@ const QRProfileDesignPage = () => {
                 {/* ID Badge Style */}
                 <div className="control-group">
                   <div className="control-label">
-                    <span>KTPD Membership ID Badge Style</span>
+                    <span>KTPD Membership ID Badge Presentation</span>
                   </div>
                   <div className="pill-options-row">
                     {[
@@ -1416,7 +2276,7 @@ const QRProfileDesignPage = () => {
                 {/* Field Spacing */}
                 <div className="control-group">
                   <div className="control-label">
-                    <span>Card Padding & Spacing</span>
+                    <span>Card Padding &amp; Spacing</span>
                   </div>
                   <div className="pill-options-row">
                     {[
@@ -1540,7 +2400,10 @@ const QRProfileDesignPage = () => {
                     rows={2}
                     value={footer.text || ''}
                     placeholder="This digital card is cryptographically verified against the KTPD Database."
-                    onChange={(e) => updateDesignField('footer.text', e.target.value)}
+                    onChange={(e) => {
+                      updateDesignField('footer.text', e.target.value);
+                      updateTextElement('footerText', 'text', e.target.value);
+                    }}
                   />
                 </div>
 
@@ -1550,7 +2413,10 @@ const QRProfileDesignPage = () => {
                     <input
                       type="checkbox"
                       checked={footer.showSecurityBadge !== false}
-                      onChange={(e) => updateDesignField('footer.showSecurityBadge', e.target.checked)}
+                      onChange={(e) => {
+                        updateDesignField('footer.showSecurityBadge', e.target.checked);
+                        updateTextElement('securityBadgeText', 'visible', e.target.checked);
+                      }}
                       style={{ width: 16, height: 16, accentColor: 'var(--primary)' }}
                     />
                     <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Show Official Security Badge</span>
@@ -1633,13 +2499,228 @@ const QRProfileDesignPage = () => {
               isActive={sampleIsActive}
               isPreview={true}
               viewport={viewport}
+              selectedElementId={selectedElementId}
+              onSelectElement={(elementId) => {
+                setSelectedElementId(elementId);
+                setActiveTab('texts');
+                // Scroll card into view
+                setTimeout(() => {
+                  const cardEl = document.getElementById(`element-card-${elementId}`);
+                  if (cardEl) {
+                    cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                  }
+                }, 100);
+              }}
             />
           </div>
         </div>
       </div>
+
+      {/* ================= "+ ADD TEXT" MODAL DIALOG ================= */}
+      {showAddTextModal && (
+        <div className="text-customizer-modal-overlay" onClick={() => setShowAddTextModal(false)}>
+          <div className="text-customizer-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="text-modal-header">
+              <h3>
+                <FolderPlus size={18} color="var(--primary)" />
+                <span>Add Text Element to Profile</span>
+              </h3>
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={() => setShowAddTextModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddTextSubmit}>
+              <div className="text-modal-body">
+                {/* 1. Type Selection */}
+                <div className="control-group">
+                  <label className="control-label" style={{ fontWeight: 600 }}>Element Type</label>
+                  <div className="pill-options-row">
+                    <button
+                      type="button"
+                      className={`pill-option-btn ${newTextType === 'custom' ? 'selected' : ''}`}
+                      onClick={() => setNewTextType('custom')}
+                    >
+                      <Type size={14} />
+                      <span>Custom Text / Notice / Advisory</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`pill-option-btn ${newTextType === 'field' ? 'selected' : ''}`}
+                      onClick={() => setNewTextType('field')}
+                    >
+                      <Tag size={14} />
+                      <span>Member Field (from Manage Fields)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2A. Field Picker if 'field' */}
+                {newTextType === 'field' && (
+                  <div className="control-group">
+                    <label className="control-label" style={{ fontWeight: 600 }}>Select Member Field</label>
+                    <select
+                      className="form-input"
+                      value={newTextLinkedFieldKey}
+                      onChange={(e) => {
+                        const k = e.target.value;
+                        setNewTextLinkedFieldKey(k);
+                        const match = availableFields.find((f) => f.fieldKey === k);
+                        if (match && !newTextTitle) {
+                          setNewTextTitle(match.fieldLabel);
+                        }
+                      }}
+                      required
+                    >
+                      <option value="">-- Choose Field from Manage Fields --</option>
+                      <optgroup label="Standard Member Fields">
+                        <option value="transportCompany">Transport Company / Designation</option>
+                        <option value="bloodGroup">Blood Group</option>
+                        <option value="mobileNo">Mobile Number</option>
+                        <option value="emiratesId">Emirates ID</option>
+                        <option value="livingArea">Living Area (UAE)</option>
+                        <option value="india">India Hometown</option>
+                        <option value="addressInIndia">Address in India</option>
+                        <option value="emergencyContact">Emergency Contact</option>
+                      </optgroup>
+                      {availableFields.filter((f) => !['name', 'memberId', 'transportCompany', 'bloodGroup', 'mobileNo', 'emiratesId', 'livingArea', 'india', 'addressInIndia', 'emergencyContact'].includes(f.fieldKey)).length > 0 && (
+                        <optgroup label="Custom Created Fields">
+                          {availableFields
+                            .filter((f) => !['name', 'memberId', 'transportCompany', 'bloodGroup', 'mobileNo', 'emiratesId', 'livingArea', 'india', 'addressInIndia', 'emergencyContact'].includes(f.fieldKey))
+                            .map((f) => (
+                              <option key={f.fieldKey} value={f.fieldKey}>
+                                {f.fieldLabel} ({f.fieldKey})
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
+                    </select>
+                  </div>
+                )}
+
+                {/* 3. Title / Label Input */}
+                <div className="control-group">
+                  <label className="control-label" style={{ fontWeight: 600 }}>
+                    Element Display Label / Title
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={newTextTitle}
+                    placeholder={newTextType === 'field' ? 'e.g. Designation or Transport Company' : 'e.g. Authority Notice / Special Remarks'}
+                    onChange={(e) => setNewTextTitle(e.target.value)}
+                  />
+                  <span className="control-hint">Displayed as the label above or beside this text</span>
+                </div>
+
+                {/* 4. Text Content (only for 'custom') */}
+                {newTextType === 'custom' && (
+                  <div className="control-group">
+                    <label className="control-label" style={{ fontWeight: 600 }}>Text Content</label>
+                    <textarea
+                      className="form-input"
+                      rows={3}
+                      value={newTextContent}
+                      placeholder="e.g. Authorized Commercial Transport Driver across UAE Emirates under KTPD supervision."
+                      onChange={(e) => setNewTextContent(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+
+                {/* 5. Placement Selection */}
+                <div className="control-group">
+                  <label className="control-label" style={{ fontWeight: 600 }}>Profile Placement Position</label>
+                  <div className="pill-options-row">
+                    {[
+                      { id: 'header', label: 'Header Banner' },
+                      { id: 'above_fields', label: 'Above Member Fields' },
+                      { id: 'below_fields', label: 'Below Member Fields' },
+                      { id: 'footer', label: 'Footer Notice' }
+                    ].map((pos) => (
+                      <button
+                        key={pos.id}
+                        type="button"
+                        className={`pill-option-btn ${newTextPlacement === pos.id ? 'selected' : ''}`}
+                        onClick={() => setNewTextPlacement(pos.id)}
+                      >
+                        {pos.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 6. Initial Size & Styling */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div className="control-group">
+                    <label className="control-label" style={{ fontWeight: 600 }}>Font Size (px)</label>
+                    <input
+                      type="number"
+                      min="10"
+                      max="48"
+                      className="form-input"
+                      value={newTextFontSize}
+                      onChange={(e) => setNewTextFontSize(e.target.value)}
+                    />
+                  </div>
+                  <div className="control-group">
+                    <label className="control-label" style={{ fontWeight: 600 }}>Alignment</label>
+                    <select
+                      className="form-input"
+                      value={newTextAlignment}
+                      onChange={(e) => setNewTextAlignment(e.target.value)}
+                    >
+                      <option value="left">Left Aligned</option>
+                      <option value="center">Centered</option>
+                      <option value="right">Right Aligned</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    padding: '0.75rem',
+                    backgroundColor: '#EEF2FF',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    color: '#3730A3',
+                    lineHeight: 1.5
+                  }}
+                >
+                  <ShieldCheck size={14} style={{ display: 'inline', marginRight: 4, verticalAlign: 'text-bottom' }} />
+                  <strong>Data Safety Rule:</strong> Custom text elements are saved strictly in the Profile Design configuration. They never alter existing member database records.
+                </div>
+              </div>
+
+              <div className="text-modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowAddTextModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ fontWeight: 700 }}
+                  disabled={newTextType === 'field' && !newTextLinkedFieldKey}
+                >
+                  <Plus size={14} />
+                  <span>Add to Profile</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default QRProfileDesignPage;
-
