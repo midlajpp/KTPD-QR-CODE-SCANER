@@ -174,6 +174,63 @@ export const DEFAULT_TEXT_ELEMENTS = {
   }
 };
 
+export const DEFAULT_BRANDING_TEXT_ELEMENTS = [
+  {
+    id: 'orgName',
+    name: 'Organization Name',
+    content: 'KTPD Drivers Association',
+    visible: true,
+    fontSize: 24,
+    minSize: 12,
+    maxSize: 48,
+    fontWeight: '700',
+    color: '',
+    textAlign: 'center',
+    letterSpacing: '0px',
+    lineHeight: 1.25,
+    fontFamily: '',
+    marginTop: 0,
+    marginBottom: 4,
+    isDefault: true
+  },
+  {
+    id: 'pageTitle',
+    name: 'Profile Page Title',
+    content: 'Official Digital Verification',
+    visible: true,
+    fontSize: 28,
+    minSize: 14,
+    maxSize: 56,
+    fontWeight: '600',
+    color: '',
+    textAlign: 'center',
+    letterSpacing: '0px',
+    lineHeight: 1.25,
+    fontFamily: '',
+    marginTop: 2,
+    marginBottom: 4,
+    isDefault: true
+  },
+  {
+    id: 'subtitle',
+    name: 'Subtitle / Tagline',
+    content: 'UAE Chapter • Kerala Transport Drivers Association',
+    visible: true,
+    fontSize: 16,
+    minSize: 10,
+    maxSize: 36,
+    fontWeight: '500',
+    color: '',
+    textAlign: 'center',
+    letterSpacing: '0.5px',
+    lineHeight: 1.35,
+    fontFamily: '',
+    marginTop: 2,
+    marginBottom: 0,
+    isDefault: true
+  }
+];
+
 export const DEFAULT_DESIGN = {
   template: 'modern', // 'modern' | 'minimal' | 'corporate' | 'gradient' | 'compact'
   branding: {
@@ -196,6 +253,7 @@ export const DEFAULT_DESIGN = {
     subtitleFontWeight: '500', // '400' | '500' | '600' | '700'
     subtitleLetterSpacing: '0.5px',
     subtitleLineHeight: 1.35,
+    textElements: DEFAULT_BRANDING_TEXT_ELEMENTS
   },
   colors: {
     primary: '#1D4ED8',
@@ -339,10 +397,54 @@ profileDesignSchema.statics.getEffectivePublished = async function () {
     }
   }
 
+  // Handle branding text elements (reorderable, removable, hideable array)
+  const pubBranding = pub.branding || {};
+  let brandingTextElements;
+  if (Array.isArray(pubBranding.textElements)) {
+    brandingTextElements = pubBranding.textElements;
+  } else {
+    brandingTextElements = DEFAULT_BRANDING_TEXT_ELEMENTS.map((el) => {
+      const copy = { ...el };
+      if (copy.id === 'orgName') {
+        if (pubBranding.orgName) copy.content = pubBranding.orgName;
+        if (pubBranding.orgNameFontSize) copy.fontSize = pubBranding.orgNameFontSize;
+        if (pubBranding.orgNameFontWeight) copy.fontWeight = pubBranding.orgNameFontWeight;
+        if (pubBranding.orgNameLetterSpacing) copy.letterSpacing = pubBranding.orgNameLetterSpacing;
+        if (pubBranding.orgNameLineHeight) copy.lineHeight = pubBranding.orgNameLineHeight;
+      } else if (copy.id === 'pageTitle') {
+        if (pubBranding.pageTitle) copy.content = pubBranding.pageTitle;
+        if (pubBranding.pageTitleFontSize) copy.fontSize = pubBranding.pageTitleFontSize;
+        if (pubBranding.pageTitleFontWeight) copy.fontWeight = pubBranding.pageTitleFontWeight;
+        if (pubBranding.pageTitleLetterSpacing) copy.letterSpacing = pubBranding.pageTitleLetterSpacing;
+        if (pubBranding.pageTitleLineHeight) copy.lineHeight = pubBranding.pageTitleLineHeight;
+      } else if (copy.id === 'subtitle') {
+        if (pubBranding.subtitle !== undefined) copy.content = pubBranding.subtitle;
+        if (pubBranding.subtitleFontSize) copy.fontSize = pubBranding.subtitleFontSize;
+        if (pubBranding.subtitleFontWeight) copy.fontWeight = pubBranding.subtitleFontWeight;
+        if (pubBranding.subtitleLetterSpacing) copy.letterSpacing = pubBranding.subtitleLetterSpacing;
+        if (pubBranding.subtitleLineHeight) copy.lineHeight = pubBranding.subtitleLineHeight;
+      }
+      return copy;
+    });
+  }
+
+  const orgNameEl = brandingTextElements.find((e) => e.id === 'orgName');
+  const pageTitleEl = brandingTextElements.find((e) => e.id === 'pageTitle');
+  const subtitleEl = brandingTextElements.find((e) => e.id === 'subtitle');
+
+  const effectiveBranding = {
+    ...DEFAULT_DESIGN.branding,
+    ...pubBranding,
+    orgName: orgNameEl ? orgNameEl.content : (Array.isArray(pubBranding.textElements) ? '' : (pubBranding.orgName || DEFAULT_DESIGN.branding.orgName)),
+    pageTitle: pageTitleEl ? pageTitleEl.content : (Array.isArray(pubBranding.textElements) ? '' : (pubBranding.pageTitle || DEFAULT_DESIGN.branding.pageTitle)),
+    subtitle: subtitleEl ? subtitleEl.content : (Array.isArray(pubBranding.textElements) ? '' : (pubBranding.subtitle || DEFAULT_DESIGN.branding.subtitle)),
+    textElements: brandingTextElements
+  };
+
   return {
     ...DEFAULT_DESIGN,
     ...pub,
-    branding: { ...DEFAULT_DESIGN.branding, ...(pub.branding || {}) },
+    branding: effectiveBranding,
     colors: { ...DEFAULT_DESIGN.colors, ...(pub.colors || {}) },
     background: { ...DEFAULT_DESIGN.background, ...(pub.background || {}) },
     typography: { ...DEFAULT_DESIGN.typography, ...(pub.typography || {}) },

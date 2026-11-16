@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { loadGoogleFont } from '../utils/fontLoader';
 import { getAssetUrl } from '../services/api';
 import {
@@ -69,10 +69,18 @@ const ProfileCardView = ({
     customTexts = []
   } = design;
 
-  // Dynamically load Google Fonts configured in theme, individual text elements, and custom texts
+  // Dynamically load Google Fonts configured in theme, individual text elements, branding elements, and custom texts
   useEffect(() => {
     const fontsToLoad = new Set();
     if (typography?.fontFamily) fontsToLoad.add(typography.fontFamily);
+
+    if (Array.isArray(branding?.textElements)) {
+      branding.textElements.forEach((el) => {
+        if (el?.fontFamily && el.fontFamily !== 'inherit') {
+          fontsToLoad.add(el.fontFamily);
+        }
+      });
+    }
 
     if (textElements) {
       Object.values(textElements).forEach((el) => {
@@ -93,7 +101,7 @@ const ProfileCardView = ({
     fontsToLoad.forEach((font) => {
       loadGoogleFont(font);
     });
-  }, [typography?.fontFamily, textElements, customTexts]);
+  }, [typography?.fontFamily, branding?.textElements, textElements, customTexts]);
 
   // Compute Page Background Style
   const pageBackgroundStyle = {};
@@ -255,6 +263,87 @@ const ProfileCardView = ({
   );
   if (!subtitleEl.lineHeight && branding?.subtitleLineHeight) subtitleStyle.lineHeight = branding.subtitleLineHeight;
   if (!subtitleEl.letterSpacing && branding?.subtitleLetterSpacing) subtitleStyle.letterSpacing = branding.subtitleLetterSpacing;
+
+  // Active branding text elements (ordered, removable, hideable, with custom additions)
+  const activeBrandingElements = useMemo(() => {
+    if (Array.isArray(branding?.textElements)) {
+      return branding.textElements;
+    }
+    // Fallback if branding.textElements is not populated yet
+    return [
+      {
+        id: 'orgName',
+        name: 'Organization Name',
+        content: orgNameText,
+        visible: orgNameVisible,
+        fontSize: orgNameEl.fontSize || branding?.orgNameFontSize || 24,
+        fontWeight: orgNameEl.fontWeight || branding?.orgNameFontWeight || '700',
+        color: orgNameEl.color || '',
+        fontFamily: orgNameEl.fontFamily || 'inherit',
+        textAlign: orgNameEl.textAlign || '',
+        marginTop: 0,
+        marginBottom: 4,
+        lineHeight: orgNameEl.lineHeight || branding?.orgNameLineHeight || '1.2',
+        letterSpacing: orgNameEl.letterSpacing || branding?.orgNameLetterSpacing || '0px'
+      },
+      {
+        id: 'pageTitle',
+        name: 'Page Title',
+        content: pageTitleText,
+        visible: pageTitleVisible,
+        fontSize: pageTitleEl.fontSize || branding?.pageTitleFontSize || 28,
+        fontWeight: pageTitleEl.fontWeight || branding?.pageTitleFontWeight || '600',
+        color: pageTitleEl.color || '',
+        fontFamily: pageTitleEl.fontFamily || 'inherit',
+        textAlign: pageTitleEl.textAlign || '',
+        marginTop: 0,
+        marginBottom: 4,
+        lineHeight: pageTitleEl.lineHeight || branding?.pageTitleLineHeight || '1.25',
+        letterSpacing: pageTitleEl.letterSpacing || branding?.pageTitleLetterSpacing || '0px'
+      },
+      {
+        id: 'subtitle',
+        name: 'Subtitle',
+        content: subtitleText,
+        visible: subtitleVisible,
+        fontSize: subtitleEl.fontSize || branding?.subtitleFontSize || 16,
+        fontWeight: subtitleEl.fontWeight || branding?.subtitleFontWeight || '500',
+        color: subtitleEl.color || '',
+        fontFamily: subtitleEl.fontFamily || 'inherit',
+        textAlign: subtitleEl.textAlign || '',
+        marginTop: 0,
+        marginBottom: 0,
+        lineHeight: subtitleEl.lineHeight || branding?.subtitleLineHeight || '1.4',
+        letterSpacing: subtitleEl.letterSpacing || branding?.subtitleLetterSpacing || '0px'
+      }
+    ];
+  }, [
+    branding?.textElements,
+    branding?.orgName,
+    branding?.pageTitle,
+    branding?.subtitle,
+    branding?.orgNameFontSize,
+    branding?.pageTitleFontSize,
+    branding?.subtitleFontSize,
+    branding?.orgNameFontWeight,
+    branding?.pageTitleFontWeight,
+    branding?.subtitleFontWeight,
+    branding?.orgNameLineHeight,
+    branding?.pageTitleLineHeight,
+    branding?.subtitleLineHeight,
+    branding?.orgNameLetterSpacing,
+    branding?.pageTitleLetterSpacing,
+    branding?.subtitleLetterSpacing,
+    orgNameText,
+    orgNameVisible,
+    orgNameEl,
+    pageTitleText,
+    pageTitleVisible,
+    pageTitleEl,
+    subtitleText,
+    subtitleVisible,
+    subtitleEl
+  ]);
 
   // Status Text element
   const statusTextEl = textElements?.statusText || {};
@@ -438,44 +527,48 @@ const ProfileCardView = ({
           )}
 
           <div className="header-text-block" style={{ textAlign: headerTextAlign }}>
-            {orgNameVisible && (
-              <h1
-                {...interactiveProps('orgName')}
-                className="org-name"
-                style={{
-                  ...orgNameStyle,
-                  textAlign: orgNameStyle.textAlign || headerTextAlign
-                }}
-              >
-                {orgNameText}
-              </h1>
-            )}
+            {activeBrandingElements.map((el) => {
+              if (el.visible === false) return null;
+              const content = (el.content !== undefined && el.content !== null ? String(el.content) : '').trim();
+              if (!content) return null; // Auto-hide empty elements with zero residual empty space
 
-            {pageTitleVisible && (
-              <p
-                {...interactiveProps('pageTitle')}
-                className="page-title"
-                style={{
-                  ...pageTitleStyle,
-                  textAlign: pageTitleStyle.textAlign || headerTextAlign
-                }}
-              >
-                {pageTitleText}
-              </p>
-            )}
+              let defaultColor = template === 'minimal' ? colors?.headingColor : '#FFFFFF';
+              if (el.id === 'pageTitle') {
+                defaultColor = template === 'minimal' ? colors?.textSecondary : '#BFDBFE';
+              } else if (el.id === 'subtitle') {
+                defaultColor = template === 'minimal' ? colors?.labelColor : '#93C5FD';
+              }
 
-            {subtitleVisible && (
-              <p
-                {...interactiveProps('subtitle')}
-                className="page-subtitle"
-                style={{
-                  ...subtitleStyle,
-                  textAlign: subtitleStyle.textAlign || headerTextAlign
-                }}
-              >
-                {subtitleText}
-              </p>
-            )}
+              const elStyle = {
+                fontSize: el.fontSize ? `${el.fontSize}px` : undefined,
+                fontWeight: el.fontWeight || undefined,
+                color: el.color || defaultColor,
+                textAlign: el.textAlign || headerTextAlign,
+                lineHeight: el.lineHeight || undefined,
+                letterSpacing: el.letterSpacing || undefined,
+                fontFamily: el.fontFamily && el.fontFamily !== 'inherit' ? `"${el.fontFamily}", sans-serif` : undefined,
+                marginTop: el.marginTop !== undefined ? `${el.marginTop}px` : undefined,
+                marginBottom: el.marginBottom !== undefined ? `${el.marginBottom}px` : undefined,
+                wordBreak: 'break-word'
+              };
+
+              const isPrimary = el.id === 'orgName';
+              const ElementTag = isPrimary ? 'h1' : 'p';
+              const elementClassName = `branding-text-element branding-el-${el.id} ${
+                el.id === 'orgName' ? 'org-name' : el.id === 'pageTitle' ? 'page-title' : el.id === 'subtitle' ? 'page-subtitle' : ''
+              }`;
+
+              return (
+                <ElementTag
+                  key={el.id}
+                  {...interactiveProps(el.id)}
+                  className={elementClassName}
+                  style={elStyle}
+                >
+                  {content}
+                </ElementTag>
+              );
+            })}
 
             {/* Custom text items placed in Header */}
             {customTexts.filter((t) => t.placement === 'header').map(renderCustomTextItem)}

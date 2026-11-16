@@ -39,7 +39,10 @@ import {
   FolderPlus,
   ListFilter,
   Tag,
-  Edit3
+  Edit3,
+  GripVertical,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 
 const FONT_OPTIONS = ['Poppins', 'Inter', 'Nunito', 'Montserrat', 'Roboto'];
@@ -567,6 +570,575 @@ const TextElementCustomizerCard = ({
   );
 };
 
+export const DEFAULT_BRANDING_TEXT_ELEMENTS = [
+  {
+    id: 'orgName',
+    name: 'Organization Name',
+    content: 'KTPD Drivers Association',
+    visible: true,
+    fontSize: 24,
+    fontWeight: '700',
+    color: '',
+    fontFamily: 'inherit',
+    textAlign: '',
+    marginTop: 0,
+    marginBottom: 4,
+    lineHeight: '1.2',
+    letterSpacing: '0px'
+  },
+  {
+    id: 'pageTitle',
+    name: 'Page Title',
+    content: 'Official Digital Verification',
+    visible: true,
+    fontSize: 28,
+    fontWeight: '600',
+    color: '',
+    fontFamily: 'inherit',
+    textAlign: '',
+    marginTop: 0,
+    marginBottom: 4,
+    lineHeight: '1.25',
+    letterSpacing: '0px'
+  },
+  {
+    id: 'subtitle',
+    name: 'Subtitle',
+    content: 'UAE Chapter • Kerala Transport Drivers Association',
+    visible: true,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '',
+    fontFamily: 'inherit',
+    textAlign: '',
+    marginTop: 0,
+    marginBottom: 0,
+    lineHeight: '1.4',
+    letterSpacing: '0px'
+  }
+];
+
+export const getBrandingTextElements = (designObj) => {
+  if (Array.isArray(designObj?.branding?.textElements)) {
+    return designObj.branding.textElements;
+  }
+  return DEFAULT_BRANDING_TEXT_ELEMENTS.map((def) => {
+    if (def.id === 'orgName') {
+      return {
+        ...def,
+        content: designObj?.branding?.orgName !== undefined ? designObj.branding.orgName : def.content,
+        fontSize: designObj?.branding?.orgNameFontSize || def.fontSize,
+        fontWeight: designObj?.branding?.orgNameFontWeight || def.fontWeight,
+        lineHeight: designObj?.branding?.orgNameLineHeight || def.lineHeight,
+        letterSpacing: designObj?.branding?.orgNameLetterSpacing || def.letterSpacing
+      };
+    }
+    if (def.id === 'pageTitle') {
+      return {
+        ...def,
+        content: designObj?.branding?.pageTitle !== undefined ? designObj.branding.pageTitle : def.content,
+        fontSize: designObj?.branding?.pageTitleFontSize || def.fontSize,
+        fontWeight: designObj?.branding?.pageTitleFontWeight || def.fontWeight,
+        lineHeight: designObj?.branding?.pageTitleLineHeight || def.lineHeight,
+        letterSpacing: designObj?.branding?.pageTitleLetterSpacing || def.letterSpacing
+      };
+    }
+    if (def.id === 'subtitle') {
+      return {
+        ...def,
+        content: designObj?.branding?.subtitle !== undefined ? designObj.branding.subtitle : def.content,
+        fontSize: designObj?.branding?.subtitleFontSize || def.fontSize,
+        fontWeight: designObj?.branding?.subtitleFontWeight || def.fontWeight,
+        lineHeight: designObj?.branding?.subtitleLineHeight || def.lineHeight,
+        letterSpacing: designObj?.branding?.subtitleLetterSpacing || def.letterSpacing
+      };
+    }
+    return { ...def };
+  });
+};
+
+/**
+ * Full-Featured Branding Text Element Customizer Card
+ * Supports:
+ * - Drag Handle + Up / Down Reorder Buttons
+ * - Show / Hide toggle switch
+ * - Title / Label editing & text content editing
+ * - Font Size (+, -, px input, slider from 10px to 72px)
+ * - Font Family selection
+ * - Font Weight selection (Regular, Medium, Semibold, Bold)
+ * - Text Color picker (swatch + hex + reset)
+ * - Text Alignment (Left, Center, Right)
+ * - Spacing Controls: Margin Top & Margin Bottom (px inputs + steppers)
+ * - Line Height & Letter Spacing
+ * - Delete / Remove button with confirmation (for ANY element, including default ones)
+ */
+const BrandingElementCustomizerCard = ({
+  element,
+  index,
+  totalElements,
+  onUpdate,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  isSelected = false
+}) => {
+  const currentSize = Number(element.fontSize || 16);
+  const currentWeight = String(element.fontWeight || '600');
+  const currentSpacing = element.letterSpacing || '0px';
+  const currentLineHeight = Number(element.lineHeight || 1.25);
+  const currentColor = element.color || '';
+  const currentFamily = element.fontFamily || 'inherit';
+  const currentTextAlign = element.textAlign || '';
+  const currentMarginTop = Number(element.marginTop !== undefined ? element.marginTop : 0);
+  const currentMarginBottom = Number(element.marginBottom !== undefined ? element.marginBottom : 4);
+  const isVisible = element.visible !== false;
+
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [tempTitle, setTempTitle] = useState(element.name || element.id || 'Branding Text');
+
+  return (
+    <div
+      id={`element-card-${element.id}`}
+      className={`text-element-card branding-element-card ${isSelected ? 'is-active-element' : ''}`}
+      style={{
+        opacity: isVisible ? 1 : 0.65,
+        transition: 'all 0.2s ease-in-out',
+        marginBottom: '1rem',
+        border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
+        backgroundColor: 'var(--card-bg, #FFFFFF)',
+        borderRadius: 'var(--radius-md, 12px)',
+        padding: '1rem'
+      }}
+      draggable={true}
+      onDragStart={(e) => onDragStart(e, index)}
+      onDragOver={(e) => onDragOver(e, index)}
+      onDrop={(e) => onDrop(e, index)}
+    >
+      {/* Top Row: Drag Handle, Reorder Buttons, Name, Visibility, Size Badge, Delete */}
+      <div className="text-element-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flex: 1, minWidth: 0 }}>
+          {/* Drag Handle */}
+          <div
+            title="Drag to reorder"
+            style={{ cursor: 'grab', color: 'var(--text-muted, #94A3B8)', display: 'flex', alignItems: 'center', padding: '2px' }}
+          >
+            <GripVertical size={16} />
+          </div>
+
+          {/* Up & Down Reorder Buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={index === 0}
+              onClick={() => onMoveUp(index)}
+              title="Move up"
+              style={{ padding: '1px 3px', height: '16px', lineHeight: 1, fontSize: '9px', opacity: index === 0 ? 0.3 : 1 }}
+            >
+              <ArrowUp size={10} />
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={index === totalElements - 1}
+              onClick={() => onMoveDown(index)}
+              title="Move down"
+              style={{ padding: '1px 3px', height: '16px', lineHeight: 1, fontSize: '9px', opacity: index === totalElements - 1 ? 0.3 : 1 }}
+            >
+              <ArrowDown size={10} />
+            </button>
+          </div>
+
+          <Type size={16} color="var(--primary)" style={{ flexShrink: 0, marginLeft: '0.2rem' }} />
+
+          {/* Title / Label editing */}
+          {isEditingTitle ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flex: 1 }}>
+              <input
+                type="text"
+                className="form-input"
+                style={{ padding: '0.2rem 0.4rem', fontSize: '0.8125rem', height: 28 }}
+                value={tempTitle}
+                autoFocus
+                onChange={(e) => setTempTitle(e.target.value)}
+                onBlur={() => {
+                  setIsEditingTitle(false);
+                  if (tempTitle.trim()) onUpdate(element.id, 'name', tempTitle.trim());
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setIsEditingTitle(false);
+                    if (tempTitle.trim()) onUpdate(element.id, 'name', tempTitle.trim());
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '0.2rem 0.4rem', height: 28 }}
+                onClick={() => {
+                  setIsEditingTitle(false);
+                  if (tempTitle.trim()) onUpdate(element.id, 'name', tempTitle.trim());
+                }}
+              >
+                <Check size={13} />
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+              <span className="text-element-title" style={{ fontWeight: 600, fontSize: '0.875rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                {element.name || element.id}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setTempTitle(element.name || element.id);
+                  setIsEditingTitle(true);
+                }}
+                title="Rename this element label"
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted, #94A3B8)', cursor: 'pointer', padding: 2 }}
+              >
+                <Edit3 size={12} />
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="text-element-card-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+          {/* Show / Hide Toggle */}
+          <label className="element-toggle-switch" title={isVisible ? 'Hide this text element' : 'Show this text element'}>
+            <input
+              type="checkbox"
+              checked={isVisible}
+              onChange={(e) => onUpdate(element.id, 'visible', e.target.checked)}
+            />
+            <span>{isVisible ? <Eye size={14} color="#16A34A" /> : <EyeOff size={14} color="#94A3B8" />}</span>
+          </label>
+
+          <span className="text-element-badge" style={{ fontSize: '0.75rem', padding: '0.15rem 0.4rem', borderRadius: '4px', backgroundColor: 'var(--bg-subtle, #F1F5F9)', color: 'var(--text-secondary, #64748B)', fontWeight: 600 }}>
+            {currentSize}px
+          </span>
+
+          {/* Delete / Remove button for EVERY element */}
+          <button
+            type="button"
+            className="btn-remove-element"
+            onClick={() => onRemove(element.id)}
+            title="Delete this branding text element"
+            style={{ background: 'none', border: 'none', color: 'var(--danger, #EF4444)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </div>
+
+      {/* Text Content Input */}
+      <div style={{ marginBottom: '0.75rem' }}>
+        <input
+          type="text"
+          className="form-input"
+          value={element.content || ''}
+          placeholder="Enter text content (leave empty to hide automatically)..."
+          onChange={(e) => onUpdate(element.id, 'content', e.target.value)}
+          style={{ width: '100%', fontSize: '0.875rem' }}
+        />
+        {!element.content && (
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #94A3B8)', marginTop: '0.2rem', display: 'block' }}>
+            ℹ Empty text will automatically be hidden on the public profile with no blank space.
+          </span>
+        )}
+      </div>
+
+      {/* Font Size Row */}
+      <div className="font-size-control-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+        <span className="font-size-label" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          Font Size (Min 10px &bull; Max 72px)
+        </span>
+        <div className="font-size-stepper-control" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <button
+            type="button"
+            className="btn-stepper"
+            disabled={currentSize <= 10}
+            onClick={() => onUpdate(element.id, 'fontSize', Math.max(10, currentSize - 1))}
+            title="Decrease font size"
+          >
+            <Minus size={14} />
+          </button>
+
+          <div className="stepper-input-container">
+            <input
+              type="number"
+              min="10"
+              max="72"
+              value={currentSize}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val)) {
+                  onUpdate(element.id, 'fontSize', Math.min(72, Math.max(10, val)));
+                }
+              }}
+              className="stepper-num-input"
+            />
+            <span className="stepper-unit">px</span>
+          </div>
+
+          <button
+            type="button"
+            className="btn-stepper"
+            disabled={currentSize >= 72}
+            onClick={() => onUpdate(element.id, 'fontSize', Math.min(72, currentSize + 1))}
+            title="Increase font size"
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Font Size Slider */}
+      <input
+        type="range"
+        min="10"
+        max="72"
+        step="1"
+        value={currentSize}
+        onChange={(e) => onUpdate(element.id, 'fontSize', parseInt(e.target.value, 10))}
+        className="custom-range-slider"
+        style={{ marginBottom: '0.75rem' }}
+      />
+
+      {/* Typography & Appearance Subcontrols Grid */}
+      <div className="element-typo-subcontrols" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem' }}>
+        {/* Font Family Selector */}
+        <div className="subcontrol-item">
+          <span className="subcontrol-label">Font Family</span>
+          <select
+            className="form-input"
+            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', height: 32 }}
+            value={currentFamily}
+            onChange={(e) => onUpdate(element.id, 'fontFamily', e.target.value)}
+          >
+            <option value="inherit">Inherit Theme Font</option>
+            {FONT_OPTIONS.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Font Weight */}
+        <div className="subcontrol-item">
+          <span className="subcontrol-label">Font Weight</span>
+          <div className="pill-options-row" style={{ gap: '0.2rem' }}>
+            {[
+              { id: '400', label: 'Regular' },
+              { id: '500', label: 'Medium' },
+              { id: '600', label: 'Semibold' },
+              { id: '700', label: 'Bold' }
+            ].map((w) => (
+              <button
+                key={w.id}
+                type="button"
+                className={`pill-option-btn ${currentWeight === w.id ? 'selected' : ''}`}
+                style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
+                onClick={() => onUpdate(element.id, 'fontWeight', w.id)}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Text Color */}
+        <div className="subcontrol-item">
+          <span className="subcontrol-label">Text Color</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <input
+              type="color"
+              className="color-swatch-picker"
+              style={{ width: 30, height: 30, borderRadius: 6, cursor: 'pointer' }}
+              value={currentColor.startsWith('#') ? currentColor : '#FFFFFF'}
+              onChange={(e) => onUpdate(element.id, 'color', e.target.value)}
+            />
+            <input
+              type="text"
+              className="form-input"
+              style={{ padding: '0.25rem 0.4rem', fontSize: '0.75rem', height: 30, width: 80 }}
+              value={currentColor}
+              placeholder="Inherit"
+              onChange={(e) => onUpdate(element.id, 'color', e.target.value)}
+            />
+            {currentColor && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '0.2rem 0.35rem', fontSize: '0.6875rem', height: 30 }}
+                onClick={() => onUpdate(element.id, 'color', '')}
+                title="Reset to header default color"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Text Alignment */}
+        <div className="subcontrol-item">
+          <span className="subcontrol-label">Text Alignment</span>
+          <div className="pill-options-row" style={{ gap: '0.25rem' }}>
+            {[
+              { id: 'left', label: 'Left', icon: AlignLeft },
+              { id: 'center', label: 'Center', icon: AlignCenter },
+              { id: 'right', label: 'Right', icon: AlignRight }
+            ].map((align) => {
+              const IconComponent = align.icon;
+              const isSelectedAlign = (currentTextAlign || 'center') === align.id;
+              return (
+                <button
+                  key={align.id}
+                  type="button"
+                  className={`pill-option-btn ${isSelectedAlign ? 'selected' : ''}`}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                  onClick={() => onUpdate(element.id, 'textAlign', align.id)}
+                  title={`${align.label} align`}
+                >
+                  <IconComponent size={13} />
+                  <span>{align.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Spacing Controls: Margin Top & Margin Bottom */}
+        <div className="subcontrol-item" style={{ gridColumn: '1 / -1' }}>
+          <span className="subcontrol-label">Spacing &amp; Margins</span>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            {/* Margin Top */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Top Margin:</span>
+              <div className="font-size-stepper-control" style={{ display: 'flex', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn-stepper"
+                  disabled={currentMarginTop <= 0}
+                  onClick={() => onUpdate(element.id, 'marginTop', Math.max(0, currentMarginTop - 2))}
+                >
+                  <Minus size={12} />
+                </button>
+                <div className="stepper-input-container">
+                  <input
+                    type="number"
+                    min="0"
+                    max="48"
+                    value={currentMarginTop}
+                    onChange={(e) => onUpdate(element.id, 'marginTop', Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    className="stepper-num-input"
+                    style={{ width: '38px' }}
+                  />
+                  <span className="stepper-unit">px</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn-stepper"
+                  disabled={currentMarginTop >= 48}
+                  onClick={() => onUpdate(element.id, 'marginTop', Math.min(48, currentMarginTop + 2))}
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
+            </div>
+
+            {/* Margin Bottom */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Bottom Margin:</span>
+              <div className="font-size-stepper-control" style={{ display: 'flex', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn-stepper"
+                  disabled={currentMarginBottom <= 0}
+                  onClick={() => onUpdate(element.id, 'marginBottom', Math.max(0, currentMarginBottom - 2))}
+                >
+                  <Minus size={12} />
+                </button>
+                <div className="stepper-input-container">
+                  <input
+                    type="number"
+                    min="0"
+                    max="48"
+                    value={currentMarginBottom}
+                    onChange={(e) => onUpdate(element.id, 'marginBottom', Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    className="stepper-num-input"
+                    style={{ width: '38px' }}
+                  />
+                  <span className="stepper-unit">px</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn-stepper"
+                  disabled={currentMarginBottom >= 48}
+                  onClick={() => onUpdate(element.id, 'marginBottom', Math.min(48, currentMarginBottom + 2))}
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Line Height */}
+        <div className="subcontrol-item">
+          <span className="subcontrol-label">Line Height ({currentLineHeight})</span>
+          <div className="pill-options-row" style={{ gap: '0.2rem' }}>
+            {[
+              { id: 1.1, label: '1.1' },
+              { id: 1.25, label: '1.25' },
+              { id: 1.35, label: '1.35' },
+              { id: 1.5, label: '1.5' }
+            ].map((lh) => (
+              <button
+                key={lh.id}
+                type="button"
+                className={`pill-option-btn ${currentLineHeight === lh.id ? 'selected' : ''}`}
+                style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
+                onClick={() => onUpdate(element.id, 'lineHeight', lh.id)}
+              >
+                {lh.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Letter Spacing */}
+        <div className="subcontrol-item">
+          <span className="subcontrol-label">Letter Spacing</span>
+          <div className="pill-options-row" style={{ gap: '0.2rem' }}>
+            {[
+              { id: '-0.5px', label: 'Tight' },
+              { id: '0px', label: 'Normal' },
+              { id: '0.5px', label: 'Wide' },
+              { id: '1px', label: 'Wider' }
+            ].map((sp) => (
+              <button
+                key={sp.id}
+                type="button"
+                className={`pill-option-btn ${currentSpacing === sp.id ? 'selected' : ''}`}
+                style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
+                onClick={() => onUpdate(element.id, 'letterSpacing', sp.id)}
+              >
+                {sp.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const QRProfileDesignPage = () => {
   const [activeTab, setActiveTab] = useState('texts'); // Default to Text Customizer as requested
   const [textFilter, setTextFilter] = useState('all');
@@ -598,6 +1170,17 @@ const QRProfileDesignPage = () => {
   const [newTextFontWeight, setNewTextFontWeight] = useState('500');
   const [newTextColor, setNewTextColor] = useState('#0F172A');
   const [newTextAlignment, setNewTextAlignment] = useState('left');
+
+  // "+ Add Text" in Branding Section Modal State
+  const [showAddBrandingModal, setShowAddBrandingModal] = useState(false);
+  const [newBrandName, setNewBrandName] = useState('');
+  const [newBrandContent, setNewBrandContent] = useState('');
+  const [newBrandFontSize, setNewBrandFontSize] = useState(18);
+  const [newBrandFontWeight, setNewBrandFontWeight] = useState('600');
+  const [newBrandColor, setNewBrandColor] = useState('');
+  const [newBrandTextAlign, setNewBrandTextAlign] = useState('center');
+  const [newBrandFontFamily, setNewBrandFontFamily] = useState('inherit');
+  const [draggedBrandingIndex, setDraggedBrandingIndex] = useState(null);
 
   const logoFileInputRef = useRef(null);
   const bgFileInputRef = useRef(null);
@@ -783,6 +1366,174 @@ const QRProfileDesignPage = () => {
     showSuccess('Text element removed.');
   };
 
+  // Branding Text Elements Handlers
+  const handleBrandingDragStart = (e, index) => {
+    setDraggedBrandingIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleBrandingDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleBrandingDrop = (e, dropIndex) => {
+    e.preventDefault();
+    if (draggedBrandingIndex === null || draggedBrandingIndex === dropIndex) return;
+
+    setDesign((prev) => {
+      const clone = JSON.parse(JSON.stringify(prev || {}));
+      if (!clone.branding) clone.branding = {};
+      const currentList = getBrandingTextElements(clone);
+      const reordered = [...currentList];
+      const [movedItem] = reordered.splice(draggedBrandingIndex, 1);
+      reordered.splice(dropIndex, 0, movedItem);
+      clone.branding.textElements = reordered;
+      setIsDirty(true);
+      return clone;
+    });
+
+    setDraggedBrandingIndex(null);
+  };
+
+  const handleMoveBrandingUp = (index) => {
+    if (index <= 0) return;
+    setDesign((prev) => {
+      const clone = JSON.parse(JSON.stringify(prev || {}));
+      if (!clone.branding) clone.branding = {};
+      const currentList = getBrandingTextElements(clone);
+      const reordered = [...currentList];
+      const temp = reordered[index - 1];
+      reordered[index - 1] = reordered[index];
+      reordered[index] = temp;
+      clone.branding.textElements = reordered;
+      setIsDirty(true);
+      return clone;
+    });
+  };
+
+  const handleMoveBrandingDown = (index) => {
+    setDesign((prev) => {
+      const clone = JSON.parse(JSON.stringify(prev || {}));
+      if (!clone.branding) clone.branding = {};
+      const currentList = getBrandingTextElements(clone);
+      if (index >= currentList.length - 1) return prev;
+      const reordered = [...currentList];
+      const temp = reordered[index + 1];
+      reordered[index + 1] = reordered[index];
+      reordered[index] = temp;
+      clone.branding.textElements = reordered;
+      setIsDirty(true);
+      return clone;
+    });
+  };
+
+  const updateBrandingTextElement = (elementId, prop, value) => {
+    setDesign((prev) => {
+      const clone = JSON.parse(JSON.stringify(prev || {}));
+      if (!clone.branding) clone.branding = {};
+      const currentList = getBrandingTextElements(clone);
+      clone.branding.textElements = currentList.map((el) => {
+        if (el.id === elementId) {
+          return { ...el, [prop]: value };
+        }
+        return el;
+      });
+
+      // Keep legacy top-level properties in sync if orgName, pageTitle, subtitle
+      if (elementId === 'orgName') {
+        if (prop === 'content') clone.branding.orgName = value;
+        if (prop === 'fontSize') clone.branding.orgNameFontSize = value;
+        if (prop === 'fontWeight') clone.branding.orgNameFontWeight = value;
+        if (prop === 'letterSpacing') clone.branding.orgNameLetterSpacing = value;
+        if (prop === 'lineHeight') clone.branding.orgNameLineHeight = value;
+      } else if (elementId === 'pageTitle') {
+        if (prop === 'content') clone.branding.pageTitle = value;
+        if (prop === 'fontSize') clone.branding.pageTitleFontSize = value;
+        if (prop === 'fontWeight') clone.branding.pageTitleFontWeight = value;
+        if (prop === 'letterSpacing') clone.branding.pageTitleLetterSpacing = value;
+        if (prop === 'lineHeight') clone.branding.pageTitleLineHeight = value;
+      } else if (elementId === 'subtitle') {
+        if (prop === 'content') clone.branding.subtitle = value;
+        if (prop === 'fontSize') clone.branding.subtitleFontSize = value;
+        if (prop === 'fontWeight') clone.branding.subtitleFontWeight = value;
+        if (prop === 'letterSpacing') clone.branding.subtitleLetterSpacing = value;
+        if (prop === 'lineHeight') clone.branding.subtitleLineHeight = value;
+      }
+
+      setIsDirty(true);
+      return clone;
+    });
+  };
+
+  const handleRemoveBrandingElement = (elementId) => {
+    const currentList = getBrandingTextElements(design);
+    const target = currentList.find((el) => el.id === elementId);
+    const targetName = target ? (target.name || target.id) : 'this text element';
+
+    if (!window.confirm(`Are you sure you want to remove "${targetName}" from the branding header? This permanently deletes it from the branding design configuration.`)) {
+      return;
+    }
+
+    setDesign((prev) => {
+      const clone = JSON.parse(JSON.stringify(prev || {}));
+      if (!clone.branding) clone.branding = {};
+      const list = getBrandingTextElements(clone);
+      clone.branding.textElements = list.filter((el) => el.id !== elementId);
+
+      // If removed a default element, clear its top-level branding string so it doesn't resurrect
+      if (elementId === 'orgName') clone.branding.orgName = '';
+      if (elementId === 'pageTitle') clone.branding.pageTitle = '';
+      if (elementId === 'subtitle') clone.branding.subtitle = '';
+
+      setIsDirty(true);
+      return clone;
+    });
+
+    if (selectedElementId === elementId) setSelectedElementId(null);
+    showSuccess(`Branding text element "${targetName}" removed.`);
+  };
+
+  const handleAddBrandingTextSubmit = (e) => {
+    e.preventDefault();
+    const name = newBrandName.trim() || 'Branding Text';
+    const content = newBrandContent.trim();
+    const newId = `brand_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+    const newElement = {
+      id: newId,
+      name,
+      content,
+      visible: true,
+      fontSize: Number(newBrandFontSize) || 18,
+      minSize: 10,
+      maxSize: 72,
+      fontWeight: newBrandFontWeight || '600',
+      color: newBrandColor || '',
+      textAlign: newBrandTextAlign || '',
+      fontFamily: newBrandFontFamily || 'inherit',
+      marginTop: 2,
+      marginBottom: 4,
+      lineHeight: 1.25,
+      letterSpacing: '0px'
+    };
+
+    setDesign((prev) => {
+      const clone = JSON.parse(JSON.stringify(prev || {}));
+      if (!clone.branding) clone.branding = {};
+      const list = getBrandingTextElements(clone);
+      clone.branding.textElements = [...list, newElement];
+      setIsDirty(true);
+      return clone;
+    });
+
+    setShowAddBrandingModal(false);
+    setNewBrandName('');
+    setNewBrandContent('');
+    setSelectedElementId(newId);
+    showSuccess(`Added "${name}" to branding.`);
+  };
+
   // Toggle individual field visibility (Designation/Transport Company, Blood Group, Mobile, Emirates ID, etc.)
   const toggleFieldVisibility = (fieldKey) => {
     setDesign((prev) => {
@@ -957,6 +1708,7 @@ const QRProfileDesignPage = () => {
   const textElements = d.textElements || {};
   const customTexts = Array.isArray(d.customTexts) ? d.customTexts : [];
   const hiddenFields = Array.isArray(fieldDisplay.hiddenFields) ? fieldDisplay.hiddenFields : [];
+  const brandingTextElements = getBrandingTextElements(d);
 
   // Default Built-in Text Element Accessors
   const orgNameEl = textElements.orgName || {};
@@ -1831,23 +2583,65 @@ const QRProfileDesignPage = () => {
                   </div>
                 </div>
 
-                {/* Quick Link to Text Customizer */}
-                <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                  <p style={{ margin: '0 0 0.5rem', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-                    Looking for full font size, color, weight and alignment controls for header texts?
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    style={{ fontSize: '0.75rem' }}
-                    onClick={() => {
-                      setActiveTab('texts');
-                      setTextFilter('header');
-                    }}
-                  >
-                    <Type size={13} />
-                    <span>Open Text Elements Customizer</span>
-                  </button>
+                {/* ---------------- BRANDING TEXT ELEMENTS MANAGER ---------------- */}
+                <div className="control-group" style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.875rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Branding Text Elements
+                      </h4>
+                      <p style={{ margin: '0.2rem 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        Reorder (▲/▼ or drag), customize typography, spacing, hide, or add/delete header text elements.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem', padding: '0.4rem 0.75rem', fontWeight: 600 }}
+                      onClick={() => setShowAddBrandingModal(true)}
+                    >
+                      <Plus size={15} />
+                      <span>+ Add Text</span>
+                    </button>
+                  </div>
+
+                  {/* List of Branding Text Elements */}
+                  <div className="branding-text-elements-list">
+                    {brandingTextElements.length === 0 ? (
+                      <div style={{ padding: '1.5rem', textAlign: 'center', backgroundColor: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>
+                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                          No branding text elements currently configured in header.
+                        </p>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.8125rem' }}
+                          onClick={() => setShowAddBrandingModal(true)}
+                        >
+                          <Plus size={14} />
+                          <span>+ Add First Branding Text</span>
+                        </button>
+                      </div>
+                    ) : (
+                      brandingTextElements.map((el, idx) => (
+                        <BrandingElementCustomizerCard
+                          key={el.id}
+                          element={el}
+                          index={idx}
+                          totalElements={brandingTextElements.length}
+                          onUpdate={updateBrandingTextElement}
+                          onRemove={handleRemoveBrandingElement}
+                          onMoveUp={handleMoveBrandingUp}
+                          onMoveDown={handleMoveBrandingDown}
+                          onDragStart={handleBrandingDragStart}
+                          onDragOver={handleBrandingDragOver}
+                          onDrop={handleBrandingDrop}
+                          isSelected={selectedElementId === el.id}
+                        />
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -2502,7 +3296,12 @@ const QRProfileDesignPage = () => {
               selectedElementId={selectedElementId}
               onSelectElement={(elementId) => {
                 setSelectedElementId(elementId);
-                setActiveTab('texts');
+                const isBranding = brandingTextElements.some((e) => e.id === elementId) || elementId === 'orgName' || elementId === 'pageTitle' || elementId === 'subtitle' || String(elementId).startsWith('brand_');
+                if (isBranding) {
+                  setActiveTab('branding');
+                } else {
+                  setActiveTab('texts');
+                }
                 // Scroll card into view
                 setTimeout(() => {
                   const cardEl = document.getElementById(`element-card-${elementId}`);
@@ -2713,6 +3512,186 @@ const QRProfileDesignPage = () => {
                 >
                   <Plus size={14} />
                   <span>Add to Profile</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* ================= "+ ADD TEXT" IN BRANDING MODAL DIALOG ================= */}
+      {showAddBrandingModal && (
+        <div className="text-customizer-modal-overlay" onClick={() => setShowAddBrandingModal(false)}>
+          <div className="text-customizer-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="text-modal-header">
+              <h3>
+                <Sparkles size={18} color="var(--primary)" />
+                <span>Add Branding Text Element</span>
+              </h3>
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={() => setShowAddBrandingModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddBrandingTextSubmit}>
+              <div className="text-modal-body">
+                <p style={{ margin: '0 0 1rem', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                  Add a new branding text line to your header (e.g. Chapter Slogan, Chapter Wing, or Tagline).
+                </p>
+
+                {/* Element Name / Label */}
+                <div className="control-group">
+                  <label className="control-label" style={{ fontWeight: 600 }}>
+                    Element Display Label / Name <span style={{ color: 'var(--danger)' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Chapter Slogan, Tagline, Authority Badge"
+                    value={newBrandName}
+                    required
+                    onChange={(e) => setNewBrandName(e.target.value)}
+                    autoFocus
+                  />
+                  <span className="control-hint">Internal label used to identify this text element</span>
+                </div>
+
+                {/* Text Content */}
+                <div className="control-group">
+                  <label className="control-label" style={{ fontWeight: 600 }}>
+                    Text Content <span style={{ color: 'var(--danger)' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. UAE Chapter • Kerala Transport Drivers Association"
+                    value={newBrandContent}
+                    required
+                    onChange={(e) => setNewBrandContent(e.target.value)}
+                  />
+                  <span className="control-hint">The actual text displayed on the public member profile header</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  {/* Font Size */}
+                  <div className="control-group">
+                    <label className="control-label" style={{ fontWeight: 600 }}>Font Size ({newBrandFontSize}px)</label>
+                    <input
+                      type="number"
+                      min="10"
+                      max="72"
+                      className="form-input"
+                      value={newBrandFontSize}
+                      onChange={(e) => setNewBrandFontSize(Math.max(10, Math.min(72, Number(e.target.value) || 16)))}
+                    />
+                  </div>
+
+                  {/* Font Weight */}
+                  <div className="control-group">
+                    <label className="control-label" style={{ fontWeight: 600 }}>Font Weight</label>
+                    <select
+                      className="form-input"
+                      value={newBrandFontWeight}
+                      onChange={(e) => setNewBrandFontWeight(e.target.value)}
+                    >
+                      <option value="400">Regular (400)</option>
+                      <option value="500">Medium (500)</option>
+                      <option value="600">Semibold (600)</option>
+                      <option value="700">Bold (700)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  {/* Text Alignment */}
+                  <div className="control-group">
+                    <label className="control-label" style={{ fontWeight: 600 }}>Alignment</label>
+                    <select
+                      className="form-input"
+                      value={newBrandTextAlign}
+                      onChange={(e) => setNewBrandTextAlign(e.target.value)}
+                    >
+                      <option value="center">Centered</option>
+                      <option value="left">Left Aligned</option>
+                      <option value="right">Right Aligned</option>
+                    </select>
+                  </div>
+
+                  {/* Font Family */}
+                  <div className="control-group">
+                    <label className="control-label" style={{ fontWeight: 600 }}>Font Family</label>
+                    <select
+                      className="form-input"
+                      value={newBrandFontFamily}
+                      onChange={(e) => setNewBrandFontFamily(e.target.value)}
+                    >
+                      <option value="inherit">Inherit Theme Font</option>
+                      {FONT_OPTIONS.map((f) => (
+                        <option key={f} value={f}>
+                          {f}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Optional Text Color */}
+                <div className="control-group">
+                  <label className="control-label" style={{ fontWeight: 600 }}>
+                    Text Color (Optional)
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="color"
+                      className="color-swatch-picker"
+                      style={{ width: 34, height: 34, borderRadius: 6, cursor: 'pointer' }}
+                      value={newBrandColor.startsWith('#') ? newBrandColor : '#FFFFFF'}
+                      onChange={(e) => setNewBrandColor(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. #FFFFFF (Leave empty to inherit)"
+                      value={newBrandColor}
+                      onChange={(e) => setNewBrandColor(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    padding: '0.75rem',
+                    backgroundColor: '#EEF2FF',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    color: '#3730A3',
+                    lineHeight: 1.5
+                  }}
+                >
+                  <ShieldCheck size={14} style={{ display: 'inline', marginRight: 4, verticalAlign: 'text-bottom' }} />
+                  <strong>Data Safety Rule:</strong> Branding text elements are stored in Profile Design configuration only and never alter member database records.
+                </div>
+              </div>
+
+              <div className="text-modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowAddBrandingModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ fontWeight: 700 }}
+                >
+                  <Plus size={14} />
+                  <span>Add to Branding</span>
                 </button>
               </div>
             </form>

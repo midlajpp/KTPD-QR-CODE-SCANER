@@ -1,4 +1,4 @@
-import ProfileDesign, { DEFAULT_DESIGN, DEFAULT_TEXT_ELEMENTS } from '../models/ProfileDesign.js';
+import ProfileDesign, { DEFAULT_DESIGN, DEFAULT_TEXT_ELEMENTS, DEFAULT_BRANDING_TEXT_ELEMENTS } from '../models/ProfileDesign.js';
 import AuditLog from '../models/AuditLog.js';
 
 const mergeTextElements = (source) => {
@@ -16,6 +16,27 @@ const mergeTextElements = (source) => {
       }
     }
   }
+  return merged;
+};
+
+const mergeBranding = (sourceBranding) => {
+  const merged = {
+    ...DEFAULT_DESIGN.branding,
+    ...(sourceBranding || {})
+  };
+
+  if (Array.isArray(sourceBranding?.textElements)) {
+    merged.textElements = sourceBranding.textElements;
+    const org = sourceBranding.textElements.find((e) => e.id === 'orgName');
+    const title = sourceBranding.textElements.find((e) => e.id === 'pageTitle');
+    const sub = sourceBranding.textElements.find((e) => e.id === 'subtitle');
+    merged.orgName = (org && org.content !== undefined) ? org.content : '';
+    merged.pageTitle = (title && title.content !== undefined) ? title.content : '';
+    merged.subtitle = (sub && sub.content !== undefined) ? sub.content : '';
+  } else if (!merged.textElements) {
+    merged.textElements = DEFAULT_BRANDING_TEXT_ELEMENTS;
+  }
+
   return merged;
 };
 
@@ -64,7 +85,7 @@ export const saveDraftSettings = async (req, res, next) => {
     doc.draft = {
       ...DEFAULT_DESIGN,
       ...draft,
-      branding: { ...DEFAULT_DESIGN.branding, ...(draft.branding || {}) },
+      branding: mergeBranding(draft.branding),
       colors: { ...DEFAULT_DESIGN.colors, ...(draft.colors || {}) },
       background: { ...DEFAULT_DESIGN.background, ...(draft.background || {}) },
       typography: { ...DEFAULT_DESIGN.typography, ...(draft.typography || {}) },
@@ -117,7 +138,7 @@ export const publishDesignSettings = async (req, res, next) => {
     const merged = {
       ...DEFAULT_DESIGN,
       ...settingsToPublish,
-      branding: { ...DEFAULT_DESIGN.branding, ...(settingsToPublish.branding || {}) },
+      branding: mergeBranding(settingsToPublish.branding),
       colors: { ...DEFAULT_DESIGN.colors, ...(settingsToPublish.colors || {}) },
       background: { ...DEFAULT_DESIGN.background, ...(settingsToPublish.background || {}) },
       typography: { ...DEFAULT_DESIGN.typography, ...(settingsToPublish.typography || {}) },

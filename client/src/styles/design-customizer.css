@@ -796,4 +796,37 @@
   height: 16px;
 }
 
+/* ==========================================================================
+   BRANDING TEXT ELEMENTS LIST & DRAG-AND-DROP REORDER
+   ========================================================================== */
+.branding-text-elements-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.branding-element-card {
+  position: relative;
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 12px);
+  padding: 1.125rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.branding-element-card:hover {
+  border-color: var(--primary-light, #93c5fd);
+}
+
+.branding-element-card.is-active-element {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.2);
+}
+
+.branding-element-card.is-dragging {
+  opacity: 0.45;
+  border-style: dashed;
+}
+
+
 

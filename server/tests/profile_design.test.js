@@ -475,5 +475,239 @@ describe('QR PUBLIC PROFILE DESIGN CUSTOMIZER TESTS', () => {
     expect(memberAfter.memberId).toBe('D343');
     expect(memberAfter.qrToken).toBe(sampleMemberQrToken); // Permanent QR token unchanged
   });
+
+  // 14. Branding Text Elements: Add custom branding element with typography, color, and spacing
+  test('14. Branding Text Elements: Can add custom branding element with full styling and publish live', async () => {
+    const customBrandingElement = {
+      id: 'brand_chapter_tag',
+      name: 'Chapter Tagline',
+      content: 'UAE Central Operations Division • Dubai Chapter',
+      visible: true,
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#38BDF8',
+      fontFamily: 'Montserrat',
+      textAlign: 'center',
+      marginTop: 2,
+      marginBottom: 6,
+      lineHeight: '1.3',
+      letterSpacing: '0.5px'
+    };
+
+    const brandingWithCustom = {
+      ...DEFAULT_DESIGN.branding,
+      textElements: [
+        ...DEFAULT_DESIGN.branding.textElements,
+        customBrandingElement
+      ]
+    };
+
+    const draftRes = await request(app)
+      .put('/api/design/draft')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        draft: {
+          ...DEFAULT_DESIGN,
+          branding: brandingWithCustom
+        }
+      });
+
+    expect(draftRes.status).toBe(200);
+    expect(draftRes.body.data.draft.branding.textElements).toHaveLength(4);
+    const addedDraftEl = draftRes.body.data.draft.branding.textElements.find((e) => e.id === 'brand_chapter_tag');
+    expect(addedDraftEl).toBeDefined();
+    expect(addedDraftEl.content).toBe('UAE Central Operations Division • Dubai Chapter');
+    expect(addedDraftEl.fontFamily).toBe('Montserrat');
+
+    // Publish
+    const pubRes = await request(app)
+      .post('/api/design/publish')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        settings: {
+          ...DEFAULT_DESIGN,
+          branding: brandingWithCustom
+        }
+      });
+
+    expect(pubRes.status).toBe(200);
+    expect(pubRes.body.data.published.branding.textElements).toHaveLength(4);
+
+    // Verify Public Scan
+    const publicRes = await request(app).get(`/api/public/members/${sampleMemberQrToken}`);
+    expect(publicRes.status).toBe(200);
+    const pubBrandingEls = publicRes.body.design.branding.textElements;
+    expect(pubBrandingEls).toHaveLength(4);
+    const pubAddedEl = pubBrandingEls.find((e) => e.id === 'brand_chapter_tag');
+    expect(pubAddedEl).toBeDefined();
+    expect(pubAddedEl.content).toBe('UAE Central Operations Division • Dubai Chapter');
+    expect(pubAddedEl.color).toBe('#38BDF8');
+  });
+
+  // 15. Branding Text Elements: Reorder elements and verify exact sequence in public profile
+  test('15. Branding Text Elements: Reordered sequence is preserved in live preview and published public profile', async () => {
+    // Reorder: subtitle first, then pageTitle, then orgName
+    const reorderedElements = [
+      {
+        id: 'subtitle',
+        name: 'Subtitle',
+        content: 'Official UAE Chapter',
+        visible: true,
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#93C5FD',
+        fontFamily: 'inherit',
+        textAlign: 'center'
+      },
+      {
+        id: 'pageTitle',
+        name: 'Page Title',
+        content: 'Driver Identity Verification',
+        visible: true,
+        fontSize: 26,
+        fontWeight: '700',
+        color: '#FFFFFF',
+        fontFamily: 'inherit',
+        textAlign: 'center'
+      },
+      {
+        id: 'orgName',
+        name: 'Organization Name',
+        content: 'Kerala Transport Drivers Association (KTPD)',
+        visible: true,
+        fontSize: 22,
+        fontWeight: '700',
+        color: '#FFFFFF',
+        fontFamily: 'inherit',
+        textAlign: 'center'
+      }
+    ];
+
+    const pubRes = await request(app)
+      .post('/api/design/publish')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        settings: {
+          ...DEFAULT_DESIGN,
+          branding: {
+            ...DEFAULT_DESIGN.branding,
+            textElements: reorderedElements
+          }
+        }
+      });
+
+    expect(pubRes.status).toBe(200);
+    const publishedElements = pubRes.body.data.published.branding.textElements;
+    expect(publishedElements[0].id).toBe('subtitle');
+    expect(publishedElements[1].id).toBe('pageTitle');
+    expect(publishedElements[2].id).toBe('orgName');
+
+    // Verify Public Scan reflects exact reordered sequence
+    const publicRes = await request(app).get(`/api/public/members/${sampleMemberQrToken}`);
+    expect(publicRes.status).toBe(200);
+    const publicElements = publicRes.body.design.branding.textElements;
+    expect(publicElements[0].id).toBe('subtitle');
+    expect(publicElements[1].id).toBe('pageTitle');
+    expect(publicElements[2].id).toBe('orgName');
+  });
+
+  // 16. Branding Text Elements: Hide toggle and empty text handling
+  test('16. Branding Text Elements: Hidden elements and empty text are cleanly handled', async () => {
+    const mixedElements = [
+      {
+        id: 'orgName',
+        name: 'Organization Name',
+        content: 'KTPD Drivers Association',
+        visible: true
+      },
+      {
+        id: 'pageTitle',
+        name: 'Page Title',
+        content: 'Driver Verification',
+        visible: false // Hidden by admin toggle
+      },
+      {
+        id: 'subtitle',
+        name: 'Subtitle',
+        content: '', // Empty text - auto-hidden
+        visible: true
+      }
+    ];
+
+    const pubRes = await request(app)
+      .post('/api/design/publish')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        settings: {
+          ...DEFAULT_DESIGN,
+          branding: {
+            ...DEFAULT_DESIGN.branding,
+            textElements: mixedElements
+          }
+        }
+      });
+
+    expect(pubRes.status).toBe(200);
+    const pubElements = pubRes.body.data.published.branding.textElements;
+    expect(pubElements.find((e) => e.id === 'pageTitle').visible).toBe(false);
+    expect(pubElements.find((e) => e.id === 'subtitle').content).toBe('');
+
+    // Public QR scan
+    const publicRes = await request(app).get(`/api/public/members/${sampleMemberQrToken}`);
+    expect(publicRes.status).toBe(200);
+    const scanElements = publicRes.body.design.branding.textElements;
+    const pageTitleItem = scanElements.find((e) => e.id === 'pageTitle');
+    expect(pageTitleItem.visible).toBe(false);
+  });
+
+  // 17. Branding Text Elements: Remove default elements (e.g. orgName or subtitle) permanently
+  test('17. Branding Text Elements: Can remove default branding elements completely from configuration', async () => {
+    // Keep only pageTitle and a custom element, deleting orgName and subtitle
+    const remainingElements = [
+      {
+        id: 'pageTitle',
+        name: 'Page Title',
+        content: 'KTPD Digital Card',
+        visible: true,
+        fontSize: 24
+      },
+      {
+        id: 'brand_custom_id',
+        name: 'Govt Reg Number',
+        content: 'Reg No: KTPD/UAE/2026/001',
+        visible: true,
+        fontSize: 14
+      }
+    ];
+
+    const pubRes = await request(app)
+      .post('/api/design/publish')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        settings: {
+          ...DEFAULT_DESIGN,
+          branding: {
+            ...DEFAULT_DESIGN.branding,
+            textElements: remainingElements
+          }
+        }
+      });
+
+    expect(pubRes.status).toBe(200);
+    const publishedElements = pubRes.body.data.published.branding.textElements;
+    expect(publishedElements).toHaveLength(2);
+    expect(publishedElements.some((e) => e.id === 'orgName')).toBe(false);
+    expect(publishedElements.some((e) => e.id === 'subtitle')).toBe(false);
+
+    // Verify Public Scan does NOT contain orgName or subtitle
+    const publicRes = await request(app).get(`/api/public/members/${sampleMemberQrToken}`);
+    expect(publicRes.status).toBe(200);
+    const publicElements = publicRes.body.design.branding.textElements;
+    expect(publicElements).toHaveLength(2);
+    expect(publicElements.some((e) => e.id === 'orgName')).toBe(false);
+    expect(publicElements.some((e) => e.id === 'subtitle')).toBe(false);
+    expect(publicElements[0].id).toBe('pageTitle');
+    expect(publicElements[1].id).toBe('brand_custom_id');
+  });
 });
 
